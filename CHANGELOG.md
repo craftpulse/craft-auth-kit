@@ -22,3 +22,5 @@
   no-op when no validator is registered.
 - Shared front-end `authkit-webauthn.js`, a `craft.authKit` Twig variable, and
   default `auth_kit_magic_link` / `auth_kit_otp` system messages.
+- Expired tokens are pruned automatically on Craft's garbage-collection pass
+  (`craft\services\Gc::EVENT_RUN`), so consuming plugins get cleanup for free.

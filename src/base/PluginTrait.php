@@ -13,6 +13,7 @@ namespace craftpulse\authkit\base;
 use Craft;
 use craft\events\RegisterEmailMessagesEvent;
 use craft\models\SystemMessage;
+use craft\services\Gc;
 use craft\services\SystemMessages;
 use craft\web\twig\variables\CraftVariable;
 use craft\web\User as WebUser;
@@ -47,9 +48,34 @@ trait PluginTrait
      */
     private function _attachEventHandlers(): void
     {
+        $this->_registerGarbageCollection();
         $this->_registerRecentAuthTracking();
         $this->_registerSystemMessages();
         $this->_registerVariable();
+    }
+
+    /**
+     * Prunes expired tokens on Craft's garbage-collection pass.
+     *
+     * Auth Kit owns the `authkit_tokens` table, so it owns the cleanup —
+     * consuming plugins (Warden, Warp) get it for free and never wire their
+     * own scheduler. `craft\services\Gc::EVENT_RUN` fires on every GC run
+     * (`php craft gc`, and probabilistically during requests) with a base
+     * `yii\base\Event` — there is no dedicated event class. Expired tokens are
+     * already unusable, so deleting them is safe and needs no retention window.
+     *
+     * @author Michael Thomas
+     * @since 1.0.0
+     */
+    private function _registerGarbageCollection(): void
+    {
+        Event::on(
+            Gc::class,
+            Gc::EVENT_RUN,
+            function(): void {
+                $this->getTokens()->purgeExpiredTokens();
+            },
+        );
     }
 
     /**

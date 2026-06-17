@@ -348,3 +348,16 @@ it('purges expired tokens and leaves usable ones', function() {
         ->and(TokenRecord::findOne(['tokenHash' => hash('sha256', 'raw-fresh')]))->not->toBeNull()
         ->and(TokenRecord::findOne(['tokenHash' => hash('sha256', 'raw-stale')]))->toBeNull();
 });
+
+it('prunes expired tokens when Craft garbage collection runs', function() {
+    $user = tokenUser();
+    insertToken((int)$user->id, 'gc-stale', expiryModifier: '-1 hour');
+    insertToken((int)$user->id, 'gc-fresh', expiryModifier: '+1 hour');
+
+    // The plugin wires purgeExpiredTokens() onto Gc::EVENT_RUN; a forced GC
+    // pass must fire it and clear the stale row while sparing the usable one.
+    Craft::$app->getGc()->run(true);
+
+    expect(TokenRecord::findOne(['tokenHash' => hash('sha256', 'gc-stale')]))->toBeNull()
+        ->and(TokenRecord::findOne(['tokenHash' => hash('sha256', 'gc-fresh')]))->not->toBeNull();
+});
