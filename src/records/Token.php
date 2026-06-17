@@ -1,0 +1,54 @@
+<?php
+/**
+ * Auth Kit plugin for Craft CMS 5.x
+ *
+ * Foundational authentication primitives for Craft.
+ *
+ * @link      https://craft-pulse.com
+ * @copyright Copyright (c) 2026 CraftPulse
+ */
+
+namespace craftpulse\authkit\records;
+
+use craft\db\ActiveRecord;
+use craftpulse\authkit\db\Table;
+
+/**
+ * Token record maps the `authkit_tokens` table — an issued passwordless
+ * credential (a magic link or an email OTP code), stored only as the sha256
+ * hash of the raw token.
+ *
+ * The raw token never touches the database: it is delivered once (in an email
+ * URL or as a code) and re-hashed on consumption. Single-use is enforced via
+ * `dateConsumed`, expiry via `expiryDate`, and brute-force resistance for OTP
+ * codes via `attempts`/`maxAttempts`.
+ *
+ * @property int $id
+ * @property int $userId
+ * @property string $type
+ * @property string $tokenHash
+ * @property string $expiryDate
+ * @property string|null $dateConsumed
+ * @property int $attempts
+ * @property int|null $maxAttempts
+ * @property mixed $payload
+ * @property string $dateCreated
+ * @property string $dateUpdated
+ * @property string $uid
+ *
+ * @author Michael Thomas
+ * @since 1.0.0
+ */
+class Token extends ActiveRecord
+{
+    // Public Methods
+    // =========================================================================
+
+    /**
+     * @inheritdoc
+     */
+    public static function tableName(): string
+    {
+        return Table::TOKENS;
+    }
+}

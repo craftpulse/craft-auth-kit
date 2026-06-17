@@ -1,0 +1,104 @@
+<?php
+/**
+ * Auth Kit plugin for Craft CMS 5.x
+ *
+ * Tests for the passkeys service: the recent-auth gate (the security-relevant
+ * boundary Auth Kit owns) and the delegations to core's Auth service. The
+ * WebAuthn ceremonies themselves are core's, and are not re-tested here.
+ *
+ * @link      https://craft-pulse.com
+ * @copyright Copyright (c) 2026 CraftPulse
+ */
+
+use craft\elements\User;
+use craft\helpers\StringHelper;
+use craftpulse\authkit\AuthKit;
+use craftpulse\authkit\services\Passkeys;
+
+function passkeysService(): Passkeys
+{
+    return AuthKit::getInstance()->getPasskeys();
+}
+
+function passkeyUser(): User
+{
+    $unique = str_replace('-', '', StringHelper::UUID());
+    $user = new User();
+    $user->username = "pk-{$unique}@authkit-test.example";
+    $user->email = "pk-{$unique}@authkit-test.example";
+
+    if (!Craft::$app->getElements()->saveElement($user)) {
+        throw new RuntimeException('Could not save passkey test user.');
+    }
+
+    Craft::$app->getUsers()->activateUser($user);
+
+    return Craft::$app->getUsers()->getUserById((int)$user->id);
+}
+
+afterEach(function() {
+    Craft::$app->getSession()->remove(Passkeys::SESSION_RECENT_AUTH_KEY);
+
+    foreach (User::find()->email('*@authkit-test.example')->status(null)->all() as $user) {
+        Craft::$app->getElements()->deleteElement($user, true);
+    }
+});
+
+// Recent-auth gate
+// =========================================================================
+
+it('reports no recent auth when nothing has been stamped', function() {
+    Craft::$app->getSession()->remove(Passkeys::SESSION_RECENT_AUTH_KEY);
+
+    expect(passkeysService()->hasRecentAuth())->toBeFalse();
+});
+
+it('reports recent auth immediately after stamping', function() {
+    $service = passkeysService();
+    $service->stampRecentAuth();
+
+    expect($service->hasRecentAuth())->toBeTrue();
+});
+
+it('treats a stale stamp as no longer recent', function() {
+    Craft::$app->getSession()->set(Passkeys::SESSION_RECENT_AUTH_KEY, time() - 1000);
+    $service = passkeysService();
+    $service->recentAuthDuration = 300;
+
+    expect($service->hasRecentAuth())->toBeFalse();
+});
+
+it('honours an explicit window argument over the configured duration', function() {
+    Craft::$app->getSession()->set(Passkeys::SESSION_RECENT_AUTH_KEY, time() - 120);
+    $service = passkeysService();
+
+    expect($service->hasRecentAuth(60))->toBeFalse()
+        ->and($service->hasRecentAuth(600))->toBeTrue();
+});
+
+// Delegation to core Auth
+// =========================================================================
+
+it('reports a fresh user as having no passkeys', function() {
+    $user = passkeyUser();
+
+    expect(passkeysService()->hasPasskeys($user))->toBeFalse()
+        ->and(passkeysService()->getPasskeys($user))->toBe([]);
+});
+
+it('deletes a nonexistent passkey without error', function() {
+    $user = passkeyUser();
+
+    passkeysService()->deletePasskey($user, StringHelper::UUID());
+
+    expect(passkeysService()->hasPasskeys($user))->toBeFalse();
+});
+
+it('produces serialized creation options for a user', function() {
+    $user = passkeyUser();
+
+    $options = passkeysService()->getCreationOptions($user);
+
+    expect($options)->toBeString()
+        ->and($options)->toContain('challenge');
+});

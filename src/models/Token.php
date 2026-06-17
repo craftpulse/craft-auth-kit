@@ -1,0 +1,261 @@
+<?php
+/**
+ * Auth Kit plugin for Craft CMS 5.x
+ *
+ * Foundational authentication primitives for Craft.
+ *
+ * @link      https://craft-pulse.com
+ * @copyright Copyright (c) 2026 CraftPulse
+ */
+
+namespace craftpulse\authkit\models;
+
+use craft\base\Model;
+use craft\helpers\DateTimeHelper;
+use craft\helpers\Json;
+use craftpulse\authkit\records\Token as TokenRecord;
+use DateTime;
+
+/**
+ * Token models an issued passwordless credential — a magic link or an email
+ * OTP code. The raw token is never persisted; only its sha256 hash, single-use
+ * flag, expiry, and (for OTP) the attempt counters live here, mirroring core's
+ * hashed password-reset code pattern.
+ *
+ * Usability is decided by [[isUsable()]]: a token is good only while it is
+ * neither expired, already consumed, nor out of attempts.
+ *
+ * @author Michael Thomas
+ * @since 1.0.0
+ */
+class Token extends Model
+{
+    // Const Properties
+    // =========================================================================
+
+    /**
+     * @var string The magic-link token type — an unguessable secret, no attempt cap.
+     *
+     * @since 1.0.0
+     */
+    public const TYPE_MAGIC_LINK = 'magic-link';
+
+    /**
+     * @var string The email OTP token type — a short numeric code, attempt-capped.
+     *
+     * @since 1.0.0
+     */
+    public const TYPE_OTP = 'otp';
+
+    // Public Properties
+    // =========================================================================
+
+    /**
+     * @var int The number of failed consume attempts recorded against the token.
+     *
+     * @since 1.0.0
+     */
+    public int $attempts = 0;
+
+    /**
+     * @var DateTime|null The date the token was consumed, or null if unused.
+     *
+     * @since 1.0.0
+     */
+    public ?DateTime $dateConsumed = null;
+
+    /**
+     * @var DateTime|null The date the token row was created.
+     *
+     * @since 1.0.0
+     */
+    public ?DateTime $dateCreated = null;
+
+    /**
+     * @var DateTime|null The date the token row was last updated.
+     *
+     * @since 1.0.0
+     */
+    public ?DateTime $dateUpdated = null;
+
+    /**
+     * @var DateTime|null The date after which the token can no longer be consumed.
+     *
+     * @since 1.0.0
+     */
+    public ?DateTime $expiryDate = null;
+
+    /**
+     * @var int|null The token's ID.
+     *
+     * @since 1.0.0
+     */
+    public ?int $id = null;
+
+    /**
+     * @var int|null The maximum number of failed consume attempts, or null for
+     * no cap (magic links, whose secret is unguessable).
+     *
+     * @since 1.0.0
+     */
+    public ?int $maxAttempts = null;
+
+    /**
+     * @var array<string, mixed>|null Arbitrary issuance metadata (e.g. a returnUrl).
+     *
+     * @since 1.0.0
+     */
+    public ?array $payload = null;
+
+    /**
+     * @var string|null The sha256 hash of the raw token. Never the raw token itself.
+     *
+     * @since 1.0.0
+     */
+    public ?string $tokenHash = null;
+
+    /**
+     * @var string|null The token type — [[TYPE_MAGIC_LINK]] or [[TYPE_OTP]].
+     *
+     * @since 1.0.0
+     */
+    public ?string $type = null;
+
+    /**
+     * @var string|null The token's UID.
+     *
+     * @since 1.0.0
+     */
+    public ?string $uid = null;
+
+    /**
+     * @var int|null The ID of the Craft user the token authenticates.
+     *
+     * @since 1.0.0
+     */
+    public ?int $userId = null;
+
+    // Public Methods
+    // =========================================================================
+
+    /**
+     * Creates a Token model from its record, converting raw SQL datetime
+     * strings and the JSON payload at the hydration boundary.
+     *
+     * @param TokenRecord $record the record to hydrate from
+     * @return self
+     *
+     * @author Michael Thomas
+     * @since 1.0.0
+     */
+    public static function fromRecord(TokenRecord $record): self
+    {
+        $payload = $record->payload;
+
+        if (is_string($payload) && $payload !== '') {
+            $decoded = Json::decodeIfJson($payload);
+            $payload = is_array($decoded) ? $decoded : null;
+        } elseif (!is_array($payload)) {
+            $payload = null;
+        }
+
+        $model = new self();
+        $model->id = (int)$record->id;
+        $model->userId = (int)$record->userId;
+        $model->type = $record->type;
+        $model->tokenHash = $record->tokenHash;
+        $model->expiryDate = DateTimeHelper::toDateTime($record->expiryDate) ?: null;
+        $model->dateConsumed = DateTimeHelper::toDateTime($record->dateConsumed) ?: null;
+        $model->attempts = (int)$record->attempts;
+        $model->maxAttempts = $record->maxAttempts !== null ? (int)$record->maxAttempts : null;
+        $model->payload = $payload;
+        $model->dateCreated = DateTimeHelper::toDateTime($record->dateCreated) ?: null;
+        $model->dateUpdated = DateTimeHelper::toDateTime($record->dateUpdated) ?: null;
+        $model->uid = $record->uid;
+
+        return $model;
+    }
+
+    /**
+     * Returns whether the token has already been consumed.
+     *
+     * @return bool
+     *
+     * @author Michael Thomas
+     * @since 1.0.0
+     */
+    public function isConsumed(): bool
+    {
+        return $this->dateConsumed !== null;
+    }
+
+    /**
+     * Returns whether the token's expiry has passed.
+     *
+     * A token with no expiry is treated as expired — fail closed; every issued
+     * token is given one.
+     *
+     * @return bool
+     *
+     * @author Michael Thomas
+     * @since 1.0.0
+     */
+    public function isExpired(): bool
+    {
+        if ($this->expiryDate === null) {
+            return true;
+        }
+
+        return $this->expiryDate < DateTimeHelper::now();
+    }
+
+    /**
+     * Returns whether the token has exhausted its allowed failed attempts. A
+     * null [[maxAttempts]] (magic links) is never out of attempts.
+     *
+     * @return bool
+     *
+     * @author Michael Thomas
+     * @since 1.0.0
+     */
+    public function isOutOfAttempts(): bool
+    {
+        if ($this->maxAttempts === null) {
+            return false;
+        }
+
+        return $this->attempts >= $this->maxAttempts;
+    }
+
+    /**
+     * Returns whether the token may still be consumed — neither expired,
+     * already used, nor out of attempts.
+     *
+     * @return bool
+     *
+     * @author Michael Thomas
+     * @since 1.0.0
+     */
+    public function isUsable(): bool
+    {
+        return !$this->isExpired() && !$this->isConsumed() && !$this->isOutOfAttempts();
+    }
+
+    // Protected Methods
+    // =========================================================================
+
+    /**
+     * @inheritdoc
+     * @return array<int, mixed>
+     */
+    protected function defineRules(): array
+    {
+        $rules = parent::defineRules();
+        $rules[] = [['userId', 'type', 'tokenHash', 'expiryDate'], 'required'];
+        $rules[] = [['userId', 'attempts', 'maxAttempts'], 'integer'];
+        $rules[] = [['type'], 'in', 'range' => [self::TYPE_MAGIC_LINK, self::TYPE_OTP]];
+        $rules[] = [['tokenHash'], 'string', 'length' => 64];
+
+        return $rules;
+    }
+}
