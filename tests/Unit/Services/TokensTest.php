@@ -21,6 +21,7 @@ use craftpulse\authkit\models\Token;
 use craftpulse\authkit\records\Token as TokenRecord;
 use craftpulse\authkit\services\Tokens;
 use craftpulse\authkit\tests\Support\CollectingMailer;
+use craftpulse\authkit\tests\Support\CountingSecurity;
 use yii\base\Event;
 
 function tokens(?CollectingMailer $mailer = null): Tokens
@@ -332,6 +333,75 @@ it('refuses an expired OTP code', function() {
     insertToken((int)$user->id, '123456', type: Token::TYPE_OTP, expiryModifier: '-1 second', maxAttempts: 5);
 
     expect(tokens()->consumeOtp($user->email, '123456'))->toBeNull();
+});
+
+// Enumeration timing
+// =========================================================================
+
+/**
+ * Swaps in a security spy, runs the callback, restores the real component,
+ * and returns how many fixed-cost bcrypt verifications the callback made.
+ */
+function countEqualizerCalls(callable $callback): int
+{
+    $spy = new CountingSecurity();
+    Craft::$app->set('security', $spy);
+
+    try {
+        $callback();
+    } finally {
+        Craft::$app->set('security', ['class' => craft\services\Security::class]);
+    }
+
+    return $spy->validatePasswordCalls;
+}
+
+it('equalizes timing when consuming an OTP whose record is expired or burned', function() {
+    // A fast return on the "record exists but is stale" branch would let an
+    // attacker distinguish an account with OTP history (fast) from an unknown
+    // address (slow bcrypt equalizer) — an account-existence oracle. Every
+    // failure branch of consumeOtp must perform exactly one verification.
+    $expiredUser = tokenUser();
+    insertToken((int)$expiredUser->id, '123456', type: Token::TYPE_OTP, expiryModifier: '-1 second', maxAttempts: 5);
+
+    $burnedUser = tokenUser();
+    insertToken((int)$burnedUser->id, '654321', type: Token::TYPE_OTP, consumed: true, maxAttempts: 5);
+
+    $service = tokens();
+
+    expect(countEqualizerCalls(fn() => $service->consumeOtp($expiredUser->email, '123456')))->toBe(1)
+        ->and(countEqualizerCalls(fn() => $service->consumeOtp($burnedUser->email, '654321')))->toBe(1);
+});
+
+it('equalizes timing across the unknown-address and no-token OTP consume paths', function() {
+    $noTokenUser = tokenUser();
+    $service = tokens();
+
+    expect(countEqualizerCalls(fn() => $service->consumeOtp('nobody-' . StringHelper::UUID() . '@authkit-test.example', '123456')))->toBe(1)
+        ->and(countEqualizerCalls(fn() => $service->consumeOtp($noTokenUser->email, '123456')))->toBe(1);
+});
+
+it('equalizes timing when issuing to an unknown or suspended address', function() {
+    $suspended = tokenUser(User::STATUS_SUSPENDED);
+    $service = tokens();
+
+    expect(countEqualizerCalls(fn() => $service->issueMagicLink('nobody-' . StringHelper::UUID() . '@authkit-test.example')))->toBe(1)
+        ->and(countEqualizerCalls(fn() => $service->issueMagicLink($suspended->email)))->toBe(1)
+        ->and(countEqualizerCalls(fn() => $service->issueOtp('nobody-' . StringHelper::UUID() . '@authkit-test.example')))->toBe(1);
+});
+
+it('spends real bcrypt cost on the unknown-address path, not a no-op', function() {
+    // The equalizer must stay a genuine fixed-cost verification: DUMMY_HASH is
+    // cost-13 bcrypt, which cannot complete in under ~30ms on any hardware
+    // this runs on. Guards against the equalizer being refactored into
+    // something instant, which would silently reopen the timing oracle.
+    $service = tokens();
+
+    $start = hrtime(true);
+    $service->issueMagicLink('nobody-' . StringHelper::UUID() . '@authkit-test.example');
+    $elapsedMs = (hrtime(true) - $start) / 1_000_000;
+
+    expect($elapsedMs)->toBeGreaterThan(30.0);
 });
 
 // Maintenance

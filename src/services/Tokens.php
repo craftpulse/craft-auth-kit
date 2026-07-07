@@ -266,6 +266,11 @@ class Tokens extends Component
         $model = Token::fromRecord($record);
 
         if (!$model->isUsable()) {
+            // Equalize this branch too: a fast return here would distinguish
+            // "this address has a stale OTP" from "unknown address" (which
+            // pays the bcrypt cost above) — an account-existence oracle.
+            $this->_equalizeTiming();
+
             return null;
         }
 
@@ -667,6 +672,12 @@ class Tokens extends Component
     /**
      * Records an issuance attempt for an address and returns whether it is
      * still within the per-address throttle.
+     *
+     * The get-then-set on the cache is not atomic, so racing parallel
+     * requests can overshoot the limit by a few — an accepted trade-off:
+     * Craft's cache interface has no portable atomic increment, the overshoot
+     * is bounded by the request concurrency, and the controller's per-IP
+     * rate limiter compounds with this throttle.
      *
      * @param string $email the address being issued to
      * @return bool whether issuance may proceed
