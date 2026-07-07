@@ -105,6 +105,17 @@ class Tokens extends Component
     public const TOKEN_BYTES = 32;
 
     /**
+     * @var string The query param carrying the raw token on the magic-link
+     * verify URL. Deliberately NOT `token`: Craft's web application reserves
+     * its `tokenParam` (default `token`) for routed tokens and responds 400
+     * to any request naming it with a value Craft did not issue — a magic
+     * link using it can never reach the consuming controller.
+     *
+     * @since 1.0.0
+     */
+    public const TOKEN_PARAM = 'mlToken';
+
+    /**
      * @event TokenEvent The event that is triggered after a token is issued.
      * @since 1.0.0
      */
@@ -139,8 +150,8 @@ class Tokens extends Component
     /**
      * @var string The site route the magic-link verify URL is built against.
      * Auth Kit imposes no routes — the consuming plugin registers this URL and
-     * may override the route here. The raw token is appended as a `token`
-     * query parameter.
+     * may override the route here. The raw token is appended as a
+     * [[TOKEN_PARAM]] query parameter.
      *
      * @since 1.0.0
      */
@@ -316,7 +327,7 @@ class Tokens extends Component
             return false;
         }
 
-        $params = ['token' => $rawToken];
+        $params = [self::TOKEN_PARAM => $rawToken];
 
         if ($returnUrl !== null && $returnUrl !== '') {
             $params['returnUrl'] = $returnUrl;

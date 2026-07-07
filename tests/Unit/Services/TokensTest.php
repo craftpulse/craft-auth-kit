@@ -96,7 +96,7 @@ it('issues a usable, hashed, single-use magic link and emails it to an active us
     expect($link)->toBeString();
 
     parse_str((string)parse_url($link, PHP_URL_QUERY), $query);
-    $rawToken = $query['token'] ?? null;
+    $rawToken = $query[Tokens::TOKEN_PARAM] ?? null;
     expect($rawToken)->toBeString();
 
     $record = TokenRecord::findOne(['tokenHash' => hash('sha256', $rawToken)]);
@@ -118,19 +118,41 @@ it('carries a returnUrl through to the link and payload', function() {
     parse_str((string)parse_url($mailer->lastLink(), PHP_URL_QUERY), $query);
     expect($query['returnUrl'] ?? null)->toBe('/dashboard');
 
-    $record = TokenRecord::findOne(['tokenHash' => hash('sha256', $query['token'])]);
+    $record = TokenRecord::findOne(['tokenHash' => hash('sha256', $query[Tokens::TOKEN_PARAM])]);
     $model = Token::fromRecord($record);
     expect($model->payload)->toBe(['returnUrl' => '/dashboard']);
+});
+
+it('never uses Craft\'s reserved token param in the magic-link URL', function() {
+    // Craft's web application intercepts any request whose `tokenParam`
+    // (default `token`) query param is present and responds 400 when it is
+    // not a Craft routed token — a magic link named that way can never reach
+    // the consuming controller. Found live in the Warden phase-2 E2E drive.
+    $user = tokenUser();
+    $mailer = new CollectingMailer();
+
+    tokens($mailer)->issueMagicLink($user->email);
+
+    parse_str((string)parse_url($mailer->lastLink(), PHP_URL_QUERY), $query);
+    $craftTokenParam = Craft::$app->getConfig()->getGeneral()->tokenParam;
+
+    expect($query)->toHaveKey(Tokens::TOKEN_PARAM)
+        ->and(Tokens::TOKEN_PARAM)->not->toBe($craftTokenParam)
+        ->and($query)->not->toHaveKey($craftTokenParam);
 });
 
 it('does not issue or email a magic link for an unknown address, without throwing', function() {
     $mailer = new CollectingMailer();
 
+    // Delta-based: the playground DB may hold real token rows outside the
+    // suite's control, so assert nothing NEW was stored.
+    $before = (int)TokenRecord::find()->count();
+
     $issued = tokens($mailer)->issueMagicLink('nobody-' . StringHelper::UUID() . '@authkit-test.example');
 
     expect($issued)->toBeFalse()
         ->and($mailer->sent)->toHaveCount(0)
-        ->and((int)TokenRecord::find()->count())->toBe(0);
+        ->and((int)TokenRecord::find()->count())->toBe($before);
 });
 
 it('fails closed and issues no magic link for a suspended user', function() {
@@ -164,7 +186,7 @@ it('consumes a freshly issued magic link exactly once', function() {
 
     $service->issueMagicLink($user->email);
     parse_str((string)parse_url($mailer->lastLink(), PHP_URL_QUERY), $query);
-    $rawToken = $query['token'];
+    $rawToken = $query[Tokens::TOKEN_PARAM];
 
     $first = $service->consumeMagicLink($rawToken);
     expect($first)->toBeInstanceOf(User::class)
