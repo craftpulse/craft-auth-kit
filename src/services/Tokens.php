@@ -290,6 +290,13 @@ class Tokens extends Component
         if (!hash_equals((string)$model->tokenHash, hash('sha256', $code))) {
             $this->_registerFailedOtpAttempt($model);
 
+            // Equalize this branch too: the failed-attempt bookkeeping is a
+            // couple of indexed single-row UPDATEs (single-digit ms), while
+            // every other failure branch pays one bcrypt verification — a
+            // fast return here would distinguish "a live OTP exists for this
+            // address" from "unknown address", an account-existence oracle.
+            $this->_equalizeTiming();
+
             return null;
         }
 

@@ -395,6 +395,20 @@ it('equalizes timing when consuming an OTP whose record is expired or burned', f
         ->and(countEqualizerCalls(fn() => $service->consumeOtp($burnedUser->email, '654321')))->toBe(1);
 });
 
+it('equalizes timing when a wrong OTP code is submitted against a live token', function() {
+    // The wrong-code branch's failed-attempt bookkeeping is two indexed
+    // single-row UPDATEs (single-digit ms). Without the equalizer it returns
+    // fast while the unknown-address path pays a ~100ms+ bcrypt — a working
+    // account-existence oracle. This branch too must perform exactly one
+    // verification.
+    $user = tokenUser();
+    insertToken((int)$user->id, '123456', type: Token::TYPE_OTP, maxAttempts: 5);
+
+    $service = tokens();
+
+    expect(countEqualizerCalls(fn() => $service->consumeOtp($user->email, '999999')))->toBe(1);
+});
+
 it('equalizes timing across the unknown-address and no-token OTP consume paths', function() {
     $noTokenUser = tokenUser();
     $service = tokens();
