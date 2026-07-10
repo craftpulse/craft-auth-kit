@@ -1,6 +1,6 @@
 # Release Notes for Auth Kit
 
-## 1.0.0 - 2026-06-17
+## 1.0.0 - 2026-07-10
 
 > Initial release.
 
@@ -24,3 +24,26 @@
   default `auth_kit_magic_link` / `auth_kit_otp` system messages.
 - Expired tokens are pruned automatically on Craft's garbage-collection pass
   (`craft\services\Gc::EVENT_RUN`), so consuming plugins get cleanup for free.
+
+### Changed
+- Requires Craft CMS 5.10.0 or later: the passkey wrappers serialize creation
+  options through core's WebAuthn serializer, which is only public as of
+  5.10.0.
+
+### Security
+- Every failure branch of `consumeOtp()` now pays the constant-time equalizer,
+  including a wrong code submitted against a live token, closing an
+  account-enumeration timing oracle.
+
+### Fixed
+- OTP token hashes are scoped to their user (SHA-256 over the user UID plus
+  the code), so two users holding the same code no longer collide on the
+  unique `tokenHash` index with an uncaught `IntegrityException` on issue.
+  Magic-link hashing is unchanged.
+- The `passkeys` service now enforces the recent-auth gate its docblock
+  promised: `verifyCreation()` and `deletePasskey()` throw a
+  `yii\web\ForbiddenHttpException` when the session has not authenticated
+  within the recent-auth window.
+- `PasswordValidationResult` is a plain final value class with readonly
+  `isValid` and `errors` properties, so `errors` can no longer shadow the
+  `getErrors()` validation API it inherited as a `craft\base\Model` subclass.
