@@ -24,6 +24,17 @@ it('treats every password as valid when no validators are registered', function(
         ->and($result->errors)->toBe([]);
 });
 
+it('keeps the result a plain value class whose errors cannot shadow Yii\'s validation API', function() {
+    // On a craft\base\Model subclass, a public $errors property shadows the
+    // inherited getErrors()/hasErrors() — two same-named APIs with different
+    // answers. The frozen 1.0.0 contract is a plain final value class.
+    $result = PasswordValidationResult::invalid(['Too weak.']);
+
+    expect($result)->not->toBeInstanceOf(yii\base\Model::class)
+        ->and($result->isValid)->toBeFalse()
+        ->and($result->errors)->toBe(['Too weak.']);
+});
+
 it('rejects a password when a registered validator fails, collecting its errors', function() {
     $failing = new class() implements PasswordValidatorInterface {
         public function validate(string $password, ?User $user): PasswordValidationResult
