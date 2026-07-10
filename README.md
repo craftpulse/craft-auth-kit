@@ -14,7 +14,8 @@ store needs a table and migrations: a single installed plugin owns the
 
 ## Requirements
 
-- Craft CMS 5.3.0 or later
+- Craft CMS 5.10.0 or later (the passkey wrappers use core's WebAuthn
+  serializer, which is only public as of 5.10.0)
 - PHP 8.2 or later
 
 ## Installation

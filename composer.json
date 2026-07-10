@@ -30,7 +30,7 @@
     ],
     "require": {
         "php": "^8.2",
-        "craftcms/cms": "^5.3"
+        "craftcms/cms": "^5.10.0"
     },
     "require-dev": {
         "craftcms/ecs": "dev-main",
