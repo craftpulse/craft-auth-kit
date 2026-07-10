@@ -85,6 +85,15 @@ $passkeys->hasRecentAuth($within);                     // bool — gate sensitiv
 $passkeys->stampRecentAuth();
 ```
 
+> [!IMPORTANT]
+> The credential-changing operations enforce the gate themselves:
+> `verifyCreation()` and `deletePasskey()` throw a
+> `yii\web\ForbiddenHttpException` when the session has not authenticated
+> within the recent-auth window. Check `hasRecentAuth()` in your controller
+> first for a friendly response. The gate authenticates the session, not the
+> target: always pass the authenticated user's own element, never a user
+> resolved from request input.
+
 ### Password validation contract — `AuthKit::$plugin->passwords`
 
 The neutral cooperation seam for password strength and breach checks. Plugins

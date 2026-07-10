@@ -14,6 +14,7 @@ use craft\elements\User;
 use craft\helpers\StringHelper;
 use craftpulse\authkit\AuthKit;
 use craftpulse\authkit\services\Passkeys;
+use yii\web\ForbiddenHttpException;
 
 function passkeysService(): Passkeys
 {
@@ -88,11 +89,29 @@ it('reports a fresh user as having no passkeys', function() {
 
 it('deletes a nonexistent passkey without error', function() {
     $user = passkeyUser();
+    $service = passkeysService();
+    $service->stampRecentAuth();
+
+    $service->deletePasskey($user, StringHelper::UUID());
+
+    expect($service->hasPasskeys($user))->toBeFalse();
+});
+
+// Recent-auth enforcement
+// =========================================================================
+
+it('refuses to delete a passkey when the session has not authenticated recently', function() {
+    // The gate is enforced inside the service, not just advised in docs — a
+    // consumer that forgets its controller-side check cannot ship an ungated
+    // deletion path.
+    $user = passkeyUser();
 
     passkeysService()->deletePasskey($user, StringHelper::UUID());
+})->throws(ForbiddenHttpException::class);
 
-    expect(passkeysService()->hasPasskeys($user))->toBeFalse();
-});
+it('refuses to verify a passkey creation when the session has not authenticated recently', function() {
+    passkeysService()->verifyCreation('{}');
+})->throws(ForbiddenHttpException::class);
 
 it('produces serialized creation options for a user', function() {
     $user = passkeyUser();

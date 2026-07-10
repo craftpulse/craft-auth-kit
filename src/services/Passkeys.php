@@ -14,12 +14,15 @@ use Craft;
 use craft\elements\User;
 use craft\services\Auth;
 use yii\base\Component;
+use yii\web\ForbiddenHttpException;
 
 /**
  * Passkeys exposes core's WebAuthn machinery (`craft\services\Auth`) to
  * front-end users, who can never reach the CP-only controller core ships it
- * behind, and adds the recent-authentication gate that guards enrollment and
- * deletion.
+ * behind, and enforces the recent-authentication gate on the
+ * credential-changing operations: [[verifyCreation()]] and [[deletePasskey()]]
+ * throw a [[ForbiddenHttpException]] when the session has not authenticated
+ * within [[recentAuthDuration]] seconds.
  *
  * Auth Kit does not re-implement any WebAuthn crypto: creation options,
  * attestation verification, assertion, and credential storage all run through
@@ -31,6 +34,11 @@ use yii\base\Component;
  * `requireElevatedSession()`, so sensitive operations instead require that the
  * user authenticated — by any means — within [[recentAuthDuration]] seconds.
  * The timestamp is refreshed on every login via the handler in `PluginTrait`.
+ *
+ * The gate authenticates the *session*, not the target: authorization is
+ * scoped entirely by the `$user` argument the caller passes. Callers must
+ * always pass the authenticated user's own element — never a user resolved
+ * from request input.
  *
  * An instance of the service is available via `AuthKit::$plugin->getPasskeys()`.
  *
@@ -74,14 +82,19 @@ class Passkeys extends Component
     /**
      * Deletes one of a user's passkeys by its UID.
      *
+     * Core scopes the delete to `userId + uid`, so `$user` is the whole
+     * authorization boundary — always pass the authenticated user.
+     *
      * @param User $user the credential's owner
      * @param string $uid the passkey UID to delete
+     * @throws ForbiddenHttpException if the session has not authenticated within [[recentAuthDuration]] seconds
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
     public function deletePasskey(User $user, string $uid): void
     {
+        $this->_requireRecentAuth();
         $this->_auth()->deletePasskey($user, $uid);
     }
 
@@ -174,12 +187,15 @@ class Passkeys extends Component
      * @param string $credentials the JSON attestation response from the authenticator
      * @param string|null $credentialName an optional label for the passkey
      * @return bool whether the credential was verified and stored
+     * @throws ForbiddenHttpException if the session has not authenticated within [[recentAuthDuration]] seconds
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
     public function verifyCreation(string $credentials, ?string $credentialName = null): bool
     {
+        $this->_requireRecentAuth();
+
         return $this->_auth()->verifyPasskeyCreationResponse($credentials, $credentialName);
     }
 
@@ -200,6 +216,23 @@ class Passkeys extends Component
         assert($auth instanceof Auth);
 
         return $auth;
+    }
+
+    /**
+     * Enforces the recent-auth gate for a credential-changing operation, so a
+     * caller that skips the check cannot ship an ungated enrollment or
+     * deletion path.
+     *
+     * @throws ForbiddenHttpException if the session has not authenticated within [[recentAuthDuration]] seconds
+     *
+     * @author Michael Thomas
+     * @since 1.0.0
+     */
+    private function _requireRecentAuth(): void
+    {
+        if (!$this->hasRecentAuth()) {
+            throw new ForbiddenHttpException('Recent authentication is required to manage passkeys.');
+        }
     }
 
     /**
