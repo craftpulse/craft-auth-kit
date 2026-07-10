@@ -36,7 +36,9 @@ use yii\db\Expression;
  * - The raw token (32 random bytes for a magic link, a short numeric code for
  *   an OTP) is never persisted; only its sha256 hash is stored, and the hash
  *   is what every lookup compares against. The raw value lives only in the
- *   emailed link or code.
+ *   emailed link or code. An OTP hash is additionally scoped to its user's
+ *   UID — the code pool is tiny and deterministic, so two users holding the
+ *   same code would otherwise collide on the unique `tokenHash` index.
  * - Tokens are single-use: consumption burns the token with a conditional
  *   `UPDATE ... WHERE dateConsumed IS NULL`, so a double-submit or a parallel
  *   request can never log in twice off one token.
@@ -287,7 +289,7 @@ class Tokens extends Component
 
         // Constant-time comparison of the submitted code's hash against the
         // stored hash, so a wrong code is indistinguishable by timing.
-        if (!hash_equals((string)$model->tokenHash, hash('sha256', $code))) {
+        if (!hash_equals((string)$model->tokenHash, $this->_hashOtpCode($user, $code))) {
             $this->_registerFailedOtpAttempt($model);
 
             // Equalize this branch too: the failed-attempt bookkeeping is a
@@ -423,7 +425,9 @@ class Tokens extends Component
         return new Token([
             'userId' => (int)$user->id,
             'type' => $type,
-            'tokenHash' => hash('sha256', $rawToken),
+            'tokenHash' => $type === Token::TYPE_OTP
+                ? $this->_hashOtpCode($user, $rawToken)
+                : hash('sha256', $rawToken),
             'expiryDate' => Carbon::now()->addSeconds($this->tokenTtl),
             'maxAttempts' => $maxAttempts,
             'payload' => $payload,
@@ -521,6 +525,30 @@ class Tokens extends Component
         $max = (10 ** $this->otpDigits) - 1;
 
         return str_pad((string)random_int(0, $max), $this->otpDigits, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Hashes an OTP code scoped to its user.
+     *
+     * A short numeric code is deterministic across the whole user base, so
+     * hashing the bare code would collide on the unique `tokenHash` index the
+     * moment two users hold the same code — an uncaught IntegrityException on
+     * issue. Scoping the digest to the user's UID keeps every stored hash
+     * distinct per user while staying reproducible on the consume side, where
+     * the OTP is looked up by user and never by hash. Magic links keep the
+     * bare sha256 (their 32-byte secret makes collisions impossible and IS
+     * the lookup key).
+     *
+     * @param User $user the user the code belongs to
+     * @param string $code the raw OTP code
+     * @return string the scoped sha256 digest
+     *
+     * @author Michael Thomas
+     * @since 1.0.0
+     */
+    private function _hashOtpCode(User $user, string $code): string
+    {
+        return hash('sha256', (string)$user->uid . ':' . $code);
     }
 
     /**

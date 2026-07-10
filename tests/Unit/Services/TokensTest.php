@@ -50,6 +50,22 @@ function tokenUser(string $status = User::STATUS_ACTIVE): User
 }
 
 /**
+ * Computes the stored hash for a raw token, mirroring the service's scheme:
+ * an OTP digest is scoped to its user's UID (the code pool is tiny and
+ * deterministic), a magic-link secret is hashed bare.
+ */
+function storedHash(int $userId, string $rawToken, string $type = Token::TYPE_MAGIC_LINK): string
+{
+    if ($type !== Token::TYPE_OTP) {
+        return hash('sha256', $rawToken);
+    }
+
+    $user = Craft::$app->getUsers()->getUserById($userId);
+
+    return hash('sha256', $user->uid . ':' . $rawToken);
+}
+
+/**
  * Inserts a token row directly, so consume()'s failure paths can be exercised
  * without round-tripping through issue().
  */
@@ -65,7 +81,7 @@ function insertToken(
     $record = new TokenRecord();
     $record->userId = $userId;
     $record->type = $type;
-    $record->tokenHash = hash('sha256', $rawToken);
+    $record->tokenHash = storedHash($userId, $rawToken, $type);
     $record->expiryDate = Db::prepareDateForDb((new DateTime())->modify($expiryModifier));
     $record->dateConsumed = $consumed ? Db::prepareDateForDb(new DateTime()) : null;
     $record->attempts = $attempts;
@@ -264,10 +280,40 @@ it('issues a numeric OTP code with an attempt cap and emails it', function() {
     expect($code)->toBeString()
         ->and($code)->toMatch('/^\d{6}$/');
 
-    $record = TokenRecord::findOne(['tokenHash' => hash('sha256', $code), 'type' => Token::TYPE_OTP]);
+    $record = TokenRecord::findOne(['tokenHash' => storedHash((int)$user->id, $code, Token::TYPE_OTP), 'type' => Token::TYPE_OTP]);
     expect($record)->not->toBeNull()
         ->and((int)$record->maxAttempts)->toBe(5)
         ->and($record->dateConsumed)->toBeNull();
+
+    // The bare (unscoped) code hash must never be what is stored — it would
+    // collide across users on the unique tokenHash index.
+    expect(TokenRecord::findOne(['tokenHash' => hash('sha256', $code), 'type' => Token::TYPE_OTP]))->toBeNull();
+});
+
+it('issues the same OTP code to two users without colliding, and each consumes only their own', function() {
+    // The stored hash is scoped per user: with a bare sha256 of the 6-digit
+    // code, the second insert here would violate the unique tokenHash index
+    // and 500 the issue endpoint.
+    $alice = tokenUser();
+    $bob = tokenUser();
+
+    insertToken((int)$alice->id, '123456', type: Token::TYPE_OTP, maxAttempts: 5);
+    insertToken((int)$bob->id, '123456', type: Token::TYPE_OTP, maxAttempts: 5);
+
+    $aliceHash = TokenRecord::findOne(['userId' => $alice->id, 'type' => Token::TYPE_OTP])->tokenHash;
+    $bobHash = TokenRecord::findOne(['userId' => $bob->id, 'type' => Token::TYPE_OTP])->tokenHash;
+    expect($aliceHash)->not->toBe($bobHash);
+
+    $service = tokens();
+
+    // Each user consumes their own code; one burn does not touch the other.
+    $first = $service->consumeOtp($alice->email, '123456');
+    expect($first)->toBeInstanceOf(User::class)
+        ->and($first->id)->toBe($alice->id);
+
+    $second = $service->consumeOtp($bob->email, '123456');
+    expect($second)->toBeInstanceOf(User::class)
+        ->and($second->id)->toBe($bob->id);
 });
 
 it('does not issue an OTP for an unknown address', function() {
