@@ -27,9 +27,9 @@ use yii\caching\CacheInterface;
 use yii\db\Expression;
 
 /**
- * Tokens issues and consumes passwordless email credentials — both magic links
- * and one-time codes (OTP) — backed by a single hashed, single-use, TTL'd
- * token store.
+ * Tokens issues and consumes passwordless email credentials — magic links,
+ * one-time codes (OTP), and registration links — backed by a single hashed,
+ * single-use, TTL'd token store.
  *
  * Security invariants (SLOW MODE — see CLAUDE.md):
  *
@@ -45,9 +45,15 @@ use yii\db\Expression;
  * - Issuance is enumeration-safe: an unknown or ineligible address takes the
  *   same code path (a constant-time equalizer plus a per-address throttle) and
  *   never reveals whether an account exists. The caller surfaces an identical
- *   response either way.
- * - A token is only honoured while its target user is still active — a
- *   suspended or deactivated account cannot log back in off a stale token.
+ *   response either way. Registration inverts the eligibility test — it issues
+ *   only for an address with no account yet and refuses (equalized) any
+ *   existing user of any status — but the timing profile is the mirror of a
+ *   login issuance, so the two branches a unified endpoint dispatches between
+ *   stay indistinguishable.
+ * - A login token is only honoured while its target user is still active — a
+ *   suspended or deactivated account cannot log back in off a stale token. A
+ *   registration token has no user at consume time; it proves only mailbox
+ *   possession, and the consuming plugin owns the account decision from there.
  *
  * Magic links carry an unguessable 32-byte secret, so they have no attempt
  * cap. OTP codes are short and brute-forceable, so they are scoped to the
@@ -97,6 +103,13 @@ class Tokens extends Component
      * @since 1.0.0
      */
     public const MESSAGE_KEY_OTP = 'auth_kit_otp';
+
+    /**
+     * @var string The system message key used to compose the registration email.
+     *
+     * @since 1.1.0
+     */
+    public const MESSAGE_KEY_REGISTER = 'auth_kit_register';
 
     /**
      * @var int The number of random bytes in a raw magic-link token before hex
@@ -181,6 +194,16 @@ class Tokens extends Component
      * @since 1.0.0
      */
     public int $perEmailLimit = 5;
+
+    /**
+     * @var string The site route the registration verify URL is built against.
+     * Auth Kit imposes no routes — the consuming plugin registers this URL and
+     * may override the route here. The raw token is appended as a
+     * [[TOKEN_PARAM]] query parameter.
+     *
+     * @since 1.1.0
+     */
+    public string $registrationRoute = 'auth-kit/registration/verify';
 
     /**
      * @var int The per-address throttle window, in seconds.
@@ -306,6 +329,44 @@ class Tokens extends Component
     }
 
     /**
+     * Consumes a raw registration token and returns the burned token — whose
+     * payload carries the address that proved mailbox possession — or null if
+     * the token is unknown, expired, already used, or canceled by a handler.
+     *
+     * Registration tokens carry an unguessable 32-byte secret, so there is no
+     * account-existence oracle to equalize: the lookup is a plain hash match,
+     * exactly like a magic link. There is no user to resolve or re-check here —
+     * the token proves only that its holder controls the payload's mailbox, and
+     * the consuming plugin owns the account decision (create, activate, log in)
+     * from the returned model.
+     *
+     * @param string $rawToken the raw token from the registration URL
+     * @return Token|null the burned token, or null on any failure
+     *
+     * @author Michael Thomas
+     * @since 1.1.0
+     */
+    public function consumeRegistration(string $rawToken): ?Token
+    {
+        $rawToken = trim($rawToken);
+
+        if ($rawToken === '') {
+            return null;
+        }
+
+        $record = TokenRecord::findOne([
+            'type' => Token::TYPE_REGISTER,
+            'tokenHash' => hash('sha256', $rawToken),
+        ]);
+
+        if ($record === null) {
+            return null;
+        }
+
+        return $this->_finalizeRegistrationConsume(Token::fromRecord($record));
+    }
+
+    /**
      * Issues a magic link for an email address and emails it, when the address
      * belongs to an active user.
      *
@@ -343,7 +404,7 @@ class Tokens extends Component
         }
 
         $url = UrlHelper::siteUrl($this->magicLinkRoute, $params);
-        $this->_sendEmail(self::MESSAGE_KEY_MAGIC_LINK, $user, ['link' => $url, 'user' => $user]);
+        $this->_sendEmail(self::MESSAGE_KEY_MAGIC_LINK, (string)$user->email, ['link' => $url, 'user' => $user]);
 
         $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => $user]));
 
@@ -383,9 +444,81 @@ class Tokens extends Component
             return false;
         }
 
-        $this->_sendEmail(self::MESSAGE_KEY_OTP, $user, ['code' => $code, 'user' => $user]);
+        $this->_sendEmail(self::MESSAGE_KEY_OTP, (string)$user->email, ['code' => $code, 'user' => $user]);
 
         $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => $user]));
+
+        return true;
+    }
+
+    /**
+     * Issues a registration link for an email address and emails it, when the
+     * address has no account yet. Issuing a link mints no user row — the address
+     * lives in the token payload until the consuming plugin creates the account
+     * at verify time.
+     *
+     * Registration is the inverse of a login issuance: it proceeds only for an
+     * unknown address and refuses an address that already maps to a user of any
+     * status (the caller branches those to [[issueMagicLink()]]). The refusal is
+     * equalized so it is indistinguishable by timing from the unknown-address
+     * path, which pays its cost on the token write and email send.
+     *
+     * Returns whether a link was actually issued — but callers facing the
+     * public must respond identically regardless, to stay enumeration-safe.
+     *
+     * @param string $email the address to send a registration link to
+     * @param string|null $returnUrl the validated URL to return to after signup
+     * @return bool whether a link was issued
+     *
+     * @author Michael Thomas
+     * @since 1.1.0
+     */
+    public function issueRegistration(string $email, ?string $returnUrl = null): bool
+    {
+        $email = trim($email);
+
+        if ($email === '') {
+            $this->_equalizeTiming();
+
+            return false;
+        }
+
+        if (!$this->_withinEmailThrottle($email)) {
+            return false;
+        }
+
+        if (Craft::$app->getUsers()->getUserByUsernameOrEmail($email) !== null) {
+            // The address already has an account (of any status) — registration
+            // is not its path. Equalize the dominant cost of the happy path so
+            // this branch is not distinguishable by timing.
+            $this->_equalizeTiming();
+
+            return false;
+        }
+
+        $rawToken = bin2hex(random_bytes(self::TOKEN_BYTES));
+        $payload = ['email' => $email];
+
+        if ($returnUrl !== null && $returnUrl !== '') {
+            $payload['returnUrl'] = $returnUrl;
+        }
+
+        $token = $this->_buildRegistrationToken($rawToken, $payload);
+
+        if (!$this->_saveToken($token)) {
+            return false;
+        }
+
+        $params = [self::TOKEN_PARAM => $rawToken];
+
+        if ($returnUrl !== null && $returnUrl !== '') {
+            $params['returnUrl'] = $returnUrl;
+        }
+
+        $url = UrlHelper::siteUrl($this->registrationRoute, $params);
+        $this->_sendEmail(self::MESSAGE_KEY_REGISTER, $email, ['link' => $url, 'email' => $email]);
+
+        $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => null]));
 
         return true;
     }
@@ -406,6 +539,33 @@ class Tokens extends Component
 
     // Private Methods
     // =========================================================================
+
+    /**
+     * Builds an unsaved registration token — user-less, its target email held
+     * in the payload.
+     *
+     * The raw token is a 32-byte secret hashed bare (like a magic link): the
+     * secret is unguessable, so there is no per-user scoping to do and the hash
+     * is the lookup key.
+     *
+     * @param string $rawToken the raw token whose hash is stored
+     * @param array<string, mixed> $payload the issuance metadata (email, returnUrl)
+     * @return Token
+     *
+     * @author Michael Thomas
+     * @since 1.1.0
+     */
+    private function _buildRegistrationToken(string $rawToken, array $payload): Token
+    {
+        return new Token([
+            'userId' => null,
+            'type' => Token::TYPE_REGISTER,
+            'tokenHash' => hash('sha256', $rawToken),
+            'expiryDate' => Carbon::now()->addSeconds($this->tokenTtl),
+            'maxAttempts' => null,
+            'payload' => $payload,
+        ]);
+    }
 
     /**
      * Builds an unsaved token model for a user.
@@ -510,6 +670,54 @@ class Tokens extends Component
         $this->trigger(self::EVENT_AFTER_CONSUME_TOKEN, new TokenEvent(['token' => $model, 'user' => $user]));
 
         return $user;
+    }
+
+    /**
+     * Atomically burns a still-usable registration token and fires the
+     * surrounding consume events with a null user. Returns the burned token on
+     * success.
+     *
+     * There is no user to resolve or re-check — a registration token proves only
+     * mailbox possession, and the consuming plugin owns the account decision.
+     * The before-consume event stays cancelable so a handler can refuse the
+     * signup before the token is burned.
+     *
+     * @param Token $model the looked-up token
+     * @return Token|null
+     *
+     * @author Michael Thomas
+     * @since 1.1.0
+     */
+    private function _finalizeRegistrationConsume(Token $model): ?Token
+    {
+        if (!$model->isUsable()) {
+            return null;
+        }
+
+        $event = new TokenEvent(['token' => $model, 'user' => null]);
+        $this->trigger(self::EVENT_BEFORE_CONSUME_TOKEN, $event);
+
+        if (!$event->isValid) {
+            return null;
+        }
+
+        // Atomic single-use: burn the token only while it is still unconsumed.
+        // A second submit or a parallel request updates zero rows and is refused.
+        $affected = Db::update(
+            Table::TOKENS,
+            ['dateConsumed' => Db::prepareDateForDb(Carbon::now())],
+            ['id' => $model->id, 'dateConsumed' => null],
+        );
+
+        if ($affected !== 1) {
+            return null;
+        }
+
+        $model->dateConsumed = Carbon::now();
+
+        $this->trigger(self::EVENT_AFTER_CONSUME_TOKEN, new TokenEvent(['token' => $model, 'user' => null]));
+
+        return $model;
     }
 
     /**
@@ -657,7 +865,7 @@ class Tokens extends Component
         }
 
         $record = new TokenRecord();
-        $record->userId = (int)$token->userId;
+        $record->userId = $token->userId !== null ? (int)$token->userId : null;
         $record->type = (string)$token->type;
         $record->tokenHash = (string)$token->tokenHash;
         $record->expiryDate = (string)Db::prepareDateForDb($token->expiryDate);
@@ -679,18 +887,18 @@ class Tokens extends Component
      * stored, and the response must not differ for the visitor.
      *
      * @param string $key the system message key
-     * @param User $user the recipient
+     * @param string $email the recipient address
      * @param array<string, mixed> $variables the message variables
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    private function _sendEmail(string $key, User $user, array $variables): void
+    private function _sendEmail(string $key, string $email, array $variables): void
     {
         try {
             $this->_mailer()
                 ->composeFromKey($key, $variables)
-                ->setTo((string)$user->email)
+                ->setTo($email)
                 ->send();
         } catch (Throwable $e) {
             Craft::error("Could not send the Auth Kit email: {$e->getMessage()}", __METHOD__);

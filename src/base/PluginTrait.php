@@ -102,10 +102,12 @@ trait PluginTrait
     }
 
     /**
-     * Registers Auth Kit's editable system messages — the magic-link and OTP
-     * login emails. Subject and body are Twig, rendered with the variables the
-     * tokens service passes to `composeFromKey()`: `link` + `user` for magic
-     * links, `code` + `user` for OTP.
+     * Registers Auth Kit's editable system messages — the magic-link, OTP, and
+     * registration emails. Subject and body are Twig, rendered with the
+     * variables the tokens service passes to `composeFromKey()`: `link` + `user`
+     * for magic links, `code` + `user` for OTP, and `link` + `email` for
+     * registration (no user exists yet, so the copy addresses the visitor
+     * without a friendly name).
      *
      * @author Michael Thomas
      * @since 1.0.0
@@ -128,6 +130,13 @@ trait PluginTrait
                     'heading' => Craft::t('auth-kit', 'When someone requests a one-time sign-in code:'),
                     'subject' => Craft::t('auth-kit', 'Your sign-in code'),
                     'body' => Craft::t('auth-kit', "Hi {{ user.friendlyName }},\n\nYour one-time sign-in code is:\n\n{{ code }}\n\nIt expires shortly and can be used only once. If you didn’t request this, you can safely ignore this email."),
+                ]);
+
+                $event->messages[] = new SystemMessage([
+                    'key' => Tokens::MESSAGE_KEY_REGISTER,
+                    'heading' => Craft::t('auth-kit', 'When someone requests a link to finish signing up:'),
+                    'subject' => Craft::t('auth-kit', 'Finish setting up your account'),
+                    'body' => Craft::t('auth-kit', "Hi,\n\nUse the link below to finish setting up your account. It expires shortly and can be used only once.\n\n{{ link }}\n\nIf you didn’t request this, you can safely ignore this email."),
                 ]);
             },
         );
