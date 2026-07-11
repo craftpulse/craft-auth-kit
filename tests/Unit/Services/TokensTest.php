@@ -244,6 +244,24 @@ it('refuses a valid magic link whose user is now suspended', function() {
     expect(tokens()->consumeMagicLink('raw-suspended-token'))->toBeNull();
 });
 
+it('refuses a valid magic link whose user is now locked, burning the token', function() {
+    // getStatus() folds a lock into "active", so a locked account would slip
+    // past the active-status check — the explicit lock check keeps a stale token
+    // from logging in behind a lockout. The burn still happens (mirror of the
+    // suspended path), so the token cannot be replayed once the lock lifts.
+    $user = tokenUser();
+    insertToken((int)$user->id, 'raw-locked-token');
+
+    Craft::$app->getDb()->createCommand()
+        ->update('{{%users}}', ['locked' => true, 'lockoutDate' => Db::prepareDateForDb(new DateTime())], ['id' => $user->id])
+        ->execute();
+
+    expect(tokens()->consumeMagicLink('raw-locked-token'))->toBeNull();
+
+    $record = TokenRecord::findOne(['tokenHash' => hash('sha256', 'raw-locked-token')]);
+    expect($record->dateConsumed)->not->toBeNull();
+});
+
 it('lets a before-consume handler cancel the login without burning the token', function() {
     $user = tokenUser();
     insertToken((int)$user->id, 'raw-cancel-token');

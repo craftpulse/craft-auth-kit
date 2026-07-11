@@ -51,10 +51,11 @@ use yii\db\Expression;
  *   address that already maps to an active, suspended, or locked user — but the
  *   timing profile is the mirror of a login issuance, so the two branches a
  *   unified endpoint dispatches between stay indistinguishable.
- * - A login token is only honoured while its target user is still active — a
- *   suspended or deactivated account cannot log back in off a stale token. A
- *   registration token has no user at consume time; it proves only mailbox
- *   possession, and the consuming plugin owns the account decision from there.
+ * - A login token is only honoured while its target user is genuinely active —
+ *   a suspended, locked, or deactivated account cannot log back in off a stale
+ *   token (a lock is checked explicitly, since `getStatus()` folds it into
+ *   "active"). A registration token has no user at consume time; it proves only
+ *   mailbox possession, and the consuming plugin owns the account decision.
  *
  * Magic links carry an unguessable 32-byte secret, so they have no attempt
  * cap. OTP codes are short and brute-forceable, so they are scoped to the
@@ -632,8 +633,9 @@ class Tokens extends Component
     }
 
     /**
-     * Atomically burns a still-usable token, re-checks the user is active, and
-     * fires the surrounding consume events. Returns the user on success.
+     * Atomically burns a still-usable token, re-checks the user is active and
+     * not locked, and fires the surrounding consume events. Returns the user on
+     * success.
      *
      * @param Token $model the looked-up token
      * @return User|null
@@ -673,6 +675,14 @@ class Tokens extends Component
         }
 
         if ($user->getStatus() !== User::STATUS_ACTIVE) {
+            return null;
+        }
+
+        // getStatus() folds a locked account into "active", so the lock is
+        // checked explicitly — a stale login token must not log in behind an
+        // account lockout. The burn above stays and the login is refused, mirror
+        // of the suspended path.
+        if ($user->locked) {
             return null;
         }
 

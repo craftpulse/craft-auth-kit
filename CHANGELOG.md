@@ -30,6 +30,14 @@
   recognize. `details` is scalar-only and carries no PII — enforced at
   construction.
 
+### Security
+- Passwordless login tokens are no longer honored for a **locked** account.
+  `getStatus()` folds a lock into "active", so `consumeMagicLink()` /
+  `consumeOtp()` re-checked only for an active status and would have logged a
+  locked account straight in off a stale token. The consume path now checks the
+  lock explicitly and fails closed (the token is still burned), mirroring the
+  suspended path.
+
 ## 1.1.0 - Unreleased
 
 ### Added
