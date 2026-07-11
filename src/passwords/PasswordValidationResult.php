@@ -58,7 +58,7 @@ final class PasswordValidationResult
      * @param string[] $errors the rejection reasons, empty when valid
      *
      * @author Michael Thomas
-     * @since 1.0.0
+     * @since 1.0.1
      */
     public function __construct(bool $isValid, array $errors = [])
     {

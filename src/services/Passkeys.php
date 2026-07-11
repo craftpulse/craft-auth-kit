@@ -226,7 +226,7 @@ class Passkeys extends Component
      * @throws ForbiddenHttpException if the session has not authenticated within [[recentAuthDuration]] seconds
      *
      * @author Michael Thomas
-     * @since 1.0.0
+     * @since 1.0.1
      */
     private function _requireRecentAuth(): void
     {

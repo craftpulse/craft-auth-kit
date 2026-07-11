@@ -113,7 +113,7 @@ class Tokens extends Component
      * to any request naming it with a value Craft did not issue — a magic
      * link using it can never reach the consuming controller.
      *
-     * @since 1.0.0
+     * @since 1.0.1
      */
     public const TOKEN_PARAM = 'mlToken';
 
@@ -544,7 +544,7 @@ class Tokens extends Component
      * @return string the scoped sha256 digest
      *
      * @author Michael Thomas
-     * @since 1.0.0
+     * @since 1.0.1
      */
     private function _hashOtpCode(User $user, string $code): string
     {
