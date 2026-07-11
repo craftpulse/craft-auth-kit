@@ -187,14 +187,18 @@ it('refuses to issue a registration link for an existing suspended user', functi
         ->and($mailer->sent)->toHaveCount(0);
 });
 
-it('refuses to issue a registration link for an existing pending user', function() {
+it('issues a registration link for an existing pending user, treating it like an unknown address', function() {
+    // A pending account has not finished activating, so registration is still
+    // its path: the signup link lets its holder prove mailbox possession and
+    // activate. Issuance proceeds exactly as for an unknown address.
     $user = pendingTokenUser();
     $mailer = new CollectingMailer();
 
     $issued = tokens($mailer)->issueRegistration($user->email);
 
-    expect($issued)->toBeFalse()
-        ->and($mailer->sent)->toHaveCount(0);
+    expect($issued)->toBeTrue()
+        ->and($mailer->sent)->toHaveCount(1)
+        ->and($mailer->lastRecipients())->toContain($user->email);
 });
 
 it('does not issue a registration link for an empty address, without throwing', function() {
@@ -326,11 +330,15 @@ it('mirrors login issuance timing: the refused branch equalizes, the live branch
         ->and(countEqualizerCalls(fn() => $service->issueMagicLink($active->email)))->toBe(0);
 });
 
-it('equalizes the registration refusal for a suspended and a pending account too', function() {
+it('equalizes the registration refusal for a suspended account but does real work for a pending one', function() {
+    // Suspended stays a refusal (one equalizer call, no send); pending is a live
+    // issuance (no equalizer, the token write + email is the real cost), so both
+    // stay indistinguishable by timing from, respectively, the active-refusal
+    // and unknown-address branches of a unified endpoint.
     $suspended = tokenUser(User::STATUS_SUSPENDED);
     $pending = pendingTokenUser();
     $service = tokens();
 
     expect(countEqualizerCalls(fn() => $service->issueRegistration($suspended->email)))->toBe(1)
-        ->and(countEqualizerCalls(fn() => $service->issueRegistration($pending->email)))->toBe(1);
+        ->and(countEqualizerCalls(fn() => $service->issueRegistration($pending->email)))->toBe(0);
 });

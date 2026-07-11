@@ -2,6 +2,18 @@
 
 ## 1.2.0 - Unreleased
 
+### Changed
+- `Tokens::issueRegistration()` now proceeds for a **pending** address exactly
+  as for an unknown one — it mints and emails a signup link so the holder can
+  prove mailbox possession and finish activating — and refuses (equalized) only
+  an address that already maps to an active, suspended, or locked account.
+  Previously it refused an existing user of any status, which stranded a pending
+  account: a unified sign-in/sign-up endpoint routed it to the login path, which
+  refuses a non-active user, so it could never activate. The enumeration and
+  timing guarantees are unchanged (the pending branch does the same token-write
+  and email work as the unknown branch; the refusal branches stay equalized).
+  This adjusts 1.1.0's still-unreleased registration feature.
+
 ### Added
 - Audit-event contract — the neutral cooperation seam for authentication audit
   logging, mirroring the `passwords` registry. Emitters (Warden, Warp) describe

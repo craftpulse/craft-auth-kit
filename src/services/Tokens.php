@@ -46,10 +46,11 @@ use yii\db\Expression;
  *   same code path (a constant-time equalizer plus a per-address throttle) and
  *   never reveals whether an account exists. The caller surfaces an identical
  *   response either way. Registration inverts the eligibility test — it issues
- *   only for an address with no account yet and refuses (equalized) any
- *   existing user of any status — but the timing profile is the mirror of a
- *   login issuance, so the two branches a unified endpoint dispatches between
- *   stay indistinguishable.
+ *   for an address with no usable account yet (an unknown address, or a pending
+ *   one that can still activate through the link) and refuses (equalized) an
+ *   address that already maps to an active, suspended, or locked user — but the
+ *   timing profile is the mirror of a login issuance, so the two branches a
+ *   unified endpoint dispatches between stay indistinguishable.
  * - A login token is only honoured while its target user is still active — a
  *   suspended or deactivated account cannot log back in off a stale token. A
  *   registration token has no user at consume time; it proves only mailbox
@@ -457,11 +458,13 @@ class Tokens extends Component
      * lives in the token payload until the consuming plugin creates the account
      * at verify time.
      *
-     * Registration is the inverse of a login issuance: it proceeds only for an
-     * unknown address and refuses an address that already maps to a user of any
-     * status (the caller branches those to [[issueMagicLink()]]). The refusal is
-     * equalized so it is indistinguishable by timing from the unknown-address
-     * path, which pays its cost on the token write and email send.
+     * Registration is the near-inverse of a login issuance: it proceeds for an
+     * address with no usable account yet — an unknown address, or a pending one
+     * whose holder can still finish activating through the signup link — and
+     * refuses an address that already maps to an active, suspended, or locked
+     * user (the caller branches an active address to [[issueMagicLink()]]). The
+     * refusal is equalized so it is indistinguishable by timing from the
+     * unknown-address path, which pays its cost on the token write and email send.
      *
      * Returns whether a link was actually issued — but callers facing the
      * public must respond identically regardless, to stay enumeration-safe.
@@ -487,10 +490,16 @@ class Tokens extends Component
             return false;
         }
 
-        if (Craft::$app->getUsers()->getUserByUsernameOrEmail($email) !== null) {
-            // The address already has an account (of any status) — registration
-            // is not its path. Equalize the dominant cost of the happy path so
-            // this branch is not distinguishable by timing.
+        $existing = Craft::$app->getUsers()->getUserByUsernameOrEmail($email);
+
+        // Registration proceeds for an address with no usable account yet — an
+        // unknown address, or a pending one whose holder can still finish
+        // activating through the signup link (a unified endpoint routes an
+        // already-active address to a login issuance instead). Any account that
+        // is active, suspended, or locked is refused through the equalized path,
+        // so this branch stays indistinguishable by timing from the
+        // unknown-address one, which pays its cost on the token write and email.
+        if ($existing !== null && $existing->getStatus() !== User::STATUS_PENDING) {
             $this->_equalizeTiming();
 
             return false;
