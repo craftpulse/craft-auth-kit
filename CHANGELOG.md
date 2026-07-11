@@ -31,6 +31,9 @@
   construction.
 
 ### Security
+- `Tokens::issueRegistration()` now validates the address format and refuses a
+  malformed one through the same equalized path a taken address takes, so a bad
+  address is timing-indistinguishable from an existing account.
 - Passwordless login tokens are no longer honored for a **locked** account.
   `getStatus()` folds a lock into "active", so `consumeMagicLink()` /
   `consumeOtp()` re-checked only for an active status and would have logged a

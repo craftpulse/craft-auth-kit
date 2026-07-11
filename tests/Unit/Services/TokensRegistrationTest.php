@@ -208,6 +208,20 @@ it('does not issue a registration link for an empty address, without throwing', 
         ->and($mailer->sent)->toHaveCount(0);
 });
 
+it('refuses a malformed address through the equalized path, minting no row', function() {
+    $mailer = new CollectingMailer();
+    $service = tokens($mailer);
+
+    $before = (int)TokenRecord::find()->count();
+
+    expect($service->issueRegistration('not-an-email'))->toBeFalse()
+        ->and($mailer->sent)->toHaveCount(0)
+        ->and((int)TokenRecord::find()->count())->toBe($before)
+        // The refusal is equalized so a malformed address is timing-indistinguishable
+        // from an existing-active one.
+        ->and(countEqualizerCalls(fn() => $service->issueRegistration('still@not@valid')))->toBe(1);
+});
+
 it('throttles repeated registration issues to the same address within the window', function() {
     $email = unknownEmail();
     $service = tokens();

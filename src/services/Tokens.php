@@ -487,6 +487,15 @@ class Tokens extends Component
             return false;
         }
 
+        // A malformed address can never map to an account, so refuse it through
+        // the same equalized path an existing-active address takes — the caller
+        // must not be able to tell a bad address from a taken one.
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->_equalizeTiming();
+
+            return false;
+        }
+
         if (!$this->_withinEmailThrottle($email)) {
             return false;
         }
