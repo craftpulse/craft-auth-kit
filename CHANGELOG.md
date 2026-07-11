@@ -1,5 +1,27 @@
 # Release Notes for Auth Kit
 
+## 1.1.0 - Unreleased
+
+### Added
+- Registration tokens — a third passwordless credential type (`register`) for
+  an address that has no account yet. `Tokens::issueRegistration()` emails an
+  unguessable, single-use, TTL'd link and mints no user row (the email lives in
+  the token payload); `Tokens::consumeRegistration()` burns the token and
+  returns it, proving mailbox possession without creating or resolving a user —
+  the consuming plugin owns the account decision. Registration is the inverse of
+  a login issuance: it proceeds only for an unknown address and refuses (silently,
+  timing-equalized) any existing user of any status, so a unified sign-in/sign-up
+  endpoint stays enumeration-safe across both branches.
+- `auth_kit_register` editable system message backing the registration email,
+  and an overridable `Tokens::$registrationRoute` for the verify URL.
+
+### Changed
+- `authkit_tokens.userId` is now nullable, so a registration token can be issued
+  before its user exists. The change is a backward-compatible constraint
+  loosening (a delta migration drops and re-adds the foreign key, which still
+  enforces referential integrity for every non-null value); the plugin schema
+  version is bumped to 1.1.0.
+
 ## 1.0.1 - 2026-07-11
 
 ### Changed

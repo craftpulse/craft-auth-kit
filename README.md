@@ -49,22 +49,37 @@ $user = $tokens->consumeMagicLink($rawToken);    // ?User
 $tokens->issueOtp($email);                        // bool
 $user = $tokens->consumeOtp($email, $code);       // ?User
 
+// Registration — a 32-byte secret for an address with no account yet.
+// Mints no user row; the email lives in the token payload until verify time.
+$tokens->issueRegistration($email, $returnUrl);   // bool — unknown address only
+$token = $tokens->consumeRegistration($rawToken); // ?Token — payload carries the email
+
 // Maintenance — prune expired rows (safe on a schedule).
 $tokens->purgeExpiredTokens();                    // int rows deleted
 ```
 
+Registration is the inverse of a login issuance: `issueRegistration()` proceeds
+only for an address with no account yet, and refuses (silently, timing-equalized)
+any address that already maps to a user of any status. The two branches a unified
+sign-in/sign-up endpoint dispatches between (existing address to `issueMagicLink()`,
+unknown address to `issueRegistration()`) stay indistinguishable by timing.
+`consumeRegistration()` proves only mailbox possession and returns the burned
+token — the consuming plugin owns the account decision (create, activate, log in)
+from the payload's email.
+
 Tunable as service properties (no settings model — set on the component, e.g.
 via `config/app.php`): `tokenTtl` (default 900s), `otpDigits` (6),
-`otpMaxAttempts` (5), `perEmailLimit` (5), `perEmailWindow` (300s), and
-`magicLinkRoute` — the site route your plugin registers for the verify URL
-(Auth Kit imposes no URLs).
+`otpMaxAttempts` (5), `perEmailLimit` (5), `perEmailWindow` (300s),
+`magicLinkRoute`, and `registrationRoute` — the site routes your plugin
+registers for the verify URLs (Auth Kit imposes no URLs).
 
 > [!IMPORTANT]
-> `issueMagicLink()` / `issueOtp()` return whether a credential was actually
-> sent, but any public-facing caller **must respond identically** whether or
-> not the address exists — that is what keeps the endpoint enumeration-safe.
-> Per-IP rate limiting belongs on your controller (core's `RateLimiter`); the
-> per-address throttle here covers every channel including programmatic use.
+> `issueMagicLink()` / `issueOtp()` / `issueRegistration()` return whether a
+> credential was actually sent, but any public-facing caller **must respond
+> identically** whether or not the address exists — that is what keeps the
+> endpoint enumeration-safe. Per-IP rate limiting belongs on your controller
+> (core's `RateLimiter`); the per-address throttle here covers every channel
+> including programmatic use.
 
 ### Passkeys & recent-auth — `AuthKit::$plugin->passkeys`
 
@@ -133,8 +148,9 @@ version bump.
 
 A `craft.authKit` Twig variable exposes `hasPasskeys`, `passkeys`, and
 `webauthnJsUrl` for templates, and Auth Kit publishes a shared
-`authkit-webauthn.js` browser client. Default `auth_kit_magic_link` and
-`auth_kit_otp` system messages ship out of the box; consumers override them.
+`authkit-webauthn.js` browser client. Default `auth_kit_magic_link`,
+`auth_kit_otp`, and `auth_kit_register` system messages ship out of the box;
+consumers override them.
 
 ## Events
 
