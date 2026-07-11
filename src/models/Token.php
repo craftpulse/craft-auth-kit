@@ -17,10 +17,13 @@ use craftpulse\authkit\records\Token as TokenRecord;
 use DateTime;
 
 /**
- * Token models an issued passwordless credential — a magic link or an email
- * OTP code. The raw token is never persisted; only its sha256 hash, single-use
- * flag, expiry, and (for OTP) the attempt counters live here, mirroring core's
- * hashed password-reset code pattern.
+ * Token models an issued passwordless credential — a magic link, an email OTP
+ * code, or a registration link. The raw token is never persisted; only its
+ * sha256 hash, single-use flag, expiry, and (for OTP) the attempt counters live
+ * here, mirroring core's hashed password-reset code pattern.
+ *
+ * A registration token carries a null `userId` (no account exists yet) and the
+ * target email in its `payload`; every other type is tied to a user.
  *
  * Usability is decided by [[isUsable()]]: a token is good only while it is
  * neither expired, already consumed, nor out of attempts.
@@ -46,6 +49,15 @@ class Token extends Model
      * @since 1.0.0
      */
     public const TYPE_OTP = 'otp';
+
+    /**
+     * @var string The registration token type — an unguessable secret proving
+     * mailbox possession for an address that has no user yet. Carries a null
+     * `userId` and the target email in its payload.
+     *
+     * @since 1.1.0
+     */
+    public const TYPE_REGISTER = 'register';
 
     // Public Properties
     // =========================================================================
@@ -161,7 +173,7 @@ class Token extends Model
 
         $model = new self();
         $model->id = (int)$record->id;
-        $model->userId = (int)$record->userId;
+        $model->userId = $record->userId !== null ? (int)$record->userId : null;
         $model->type = $record->type;
         $model->tokenHash = $record->tokenHash;
         $model->expiryDate = DateTimeHelper::toDateTime($record->expiryDate) ?: null;
@@ -251,9 +263,16 @@ class Token extends Model
     protected function defineRules(): array
     {
         $rules = parent::defineRules();
-        $rules[] = [['userId', 'type', 'tokenHash', 'expiryDate'], 'required'];
+        $rules[] = [['type', 'tokenHash', 'expiryDate'], 'required'];
+        // A registration token has no user yet — its email lives in the payload
+        // — so userId is required for every other type but optional here.
+        $rules[] = [
+            ['userId'],
+            'required',
+            'when' => static fn(self $model): bool => $model->type !== self::TYPE_REGISTER,
+        ];
         $rules[] = [['userId', 'attempts', 'maxAttempts'], 'integer'];
-        $rules[] = [['type'], 'in', 'range' => [self::TYPE_MAGIC_LINK, self::TYPE_OTP]];
+        $rules[] = [['type'], 'in', 'range' => [self::TYPE_MAGIC_LINK, self::TYPE_OTP, self::TYPE_REGISTER]];
         $rules[] = [['tokenHash'], 'string', 'length' => 64];
 
         return $rules;
