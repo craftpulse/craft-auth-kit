@@ -1,5 +1,23 @@
 # Release Notes for Auth Kit
 
+## 1.2.0 - Unreleased
+
+### Added
+- Audit-event contract — the neutral cooperation seam for authentication audit
+  logging, mirroring the `passwords` registry. Emitters (Warden, Warp) describe
+  an auth fact with the frozen `AuthEvent` value object (event-name constants
+  for the login, passkey, registration, session, and SCIM vocabularies; two
+  outcome constants; readonly `userId`, `name`, `outcome`, `emitter`, `details`,
+  `actorId`) and hand it to `AuthKit::$plugin->audit->record()`. Any provider
+  plugin (e.g. Password Policy) registers an `AuditSinkInterface` via
+  `Audit::EVENT_REGISTER_AUDIT_SINKS`; the service fans each event out to every
+  sink, wrapping each in its own try/catch so a failing sink can never block an
+  auth flow or the sinks after it. With no sink registered, recording is a cheap
+  no-op. The `AuthEvent` shape is frozen at 1.2.0 (a change is a major bump); new
+  event-name constants are additive minors, and sinks ignore names they don't
+  recognize. `details` is scalar-only and carries no PII — enforced at
+  construction.
+
 ## 1.1.0 - Unreleased
 
 ### Added

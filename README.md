@@ -1,9 +1,9 @@
 # Auth Kit
 
 Foundational authentication primitives for Craft CMS 5 — passwordless tokens
-(magic links + email OTP), passkey wrappers, a recent-auth gate, and a
-password-validator contract. The shared base for the CraftPulse security
-ecosystem.
+(magic links + email OTP), passkey wrappers, a recent-auth gate, a
+password-validator contract, and an audit-event contract. The shared base for
+the CraftPulse security ecosystem.
 
 Auth Kit is **primitives + contracts**. It ships no routes, controllers, or
 UX — consuming plugins ([Warden](https://github.com/craftpulse/craft-warden),
@@ -144,6 +144,72 @@ If no validator is registered, `validate()` is a graceful no-op (valid). The
 interface is deliberately tiny and stable — treat any change to it as a major
 version bump.
 
+### Audit events — `AuthKit::$plugin->audit`
+
+The neutral cooperation seam for authentication audit logging. Emitters describe
+an auth fact with the `AuthEvent` value object and hand it to `record()`;
+provider plugins register sinks that persist or forward it. Plugins cooperate
+through this contract and a registry — **never** by sniffing each other with
+`isPluginInstalled()`.
+
+An emitter (Warden, Warp) records an event:
+
+```php
+use craftpulse\authkit\audit\AuthEvent;
+
+AuthKit::$plugin->audit->record(new AuthEvent(
+    name: AuthEvent::LOGIN_SSO,
+    emitter: 'warden',
+    userId: $user->id,
+    details: ['provider' => $providerHandle],   // scalar-only, no PII
+));
+```
+
+A provider (e.g. Password Policy) registers a sink implementing
+`craftpulse\authkit\audit\AuditSinkInterface`:
+
+```php
+use craftpulse\authkit\audit\AuditSinkInterface;
+use craftpulse\authkit\audit\AuthEvent;
+use craftpulse\authkit\events\RegisterAuditSinksEvent;
+use craftpulse\authkit\services\Audit;
+use yii\base\Event;
+
+Event::on(
+    Audit::class,
+    Audit::EVENT_REGISTER_AUDIT_SINKS,
+    function(RegisterAuditSinksEvent $event) {
+        $event->sinks[] = new class implements AuditSinkInterface {
+            public function handle(AuthEvent $event): void
+            {
+                // Persist or forward. Ignore names you don't recognize.
+            }
+        };
+    }
+);
+```
+
+`record()` fans the event out to every registered sink in order, wrapping each
+in its own try/catch: a sink that throws is logged and skipped, never blocking
+the auth flow nor the sinks after it. With no sink registered, `record()` is a
+cheap no-op.
+
+The contract has three rules:
+
+1. **`details` is scalar-only and carries no PII** — no emails, raw IPs, or raw
+   user agents. Only `bool`, `int`, `float`, and `string` values are accepted; a
+   non-scalar value throws at construction. (`outcome` is likewise validated: it
+   must be `OUTCOME_SUCCESS` or `OUTCOME_FAILURE`.)
+2. **Sinks ignore unknown event names silently.** Auth Kit adds names in minor
+   releases, so a sink may receive a name newer than the vocabulary it was
+   written against — it must not error on one.
+3. **Emitters never edition-gate emission.** Emit unconditionally; the sink side
+   decides what to keep.
+
+The `AuthEvent` shape is frozen at 1.2.0 — treat any change to its properties or
+constructor as a major version bump. New event-name constants, by contrast, are
+additive and ship in minors.
+
 ### Front end
 
 A `craft.authKit` Twig variable exposes `hasPasskeys`, `passkeys`, and
@@ -160,6 +226,7 @@ consumers override them.
 | `tokens` | `EVENT_BEFORE_CONSUME_TOKEN` | before consume (cancelable — refuses login, leaves the token unburned) |
 | `tokens` | `EVENT_AFTER_CONSUME_TOKEN` | after consume, user resolved |
 | `passwords` | `EVENT_REGISTER_PASSWORD_VALIDATORS` | to register password validators |
+| `audit` | `EVENT_REGISTER_AUDIT_SINKS` | to register audit sinks |
 
 ## Consumers
 

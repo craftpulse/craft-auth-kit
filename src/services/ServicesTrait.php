@@ -20,6 +20,7 @@ namespace craftpulse\authkit\services;
  * `@property` tags for property-style access live on this trait's docblock —
  * never duplicate them on the main plugin class.
  *
+ * @property-read Audit $audit
  * @property-read Passkeys $passkeys
  * @property-read Passwords $passwords
  * @property-read Tokens $tokens
@@ -44,11 +45,28 @@ trait ServicesTrait
     {
         return [
             'components' => [
+                'audit' => ['class' => Audit::class],
                 'passkeys' => ['class' => Passkeys::class],
                 'passwords' => ['class' => Passwords::class],
                 'tokens' => ['class' => Tokens::class],
             ],
         ];
+    }
+
+    /**
+     * Returns the audit service.
+     *
+     * @return Audit
+     *
+     * @author Michael Thomas
+     * @since 1.2.0
+     */
+    public function getAudit(): Audit
+    {
+        $component = $this->get('audit');
+        assert($component instanceof Audit);
+
+        return $component;
     }
 
     /**
