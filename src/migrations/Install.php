@@ -61,7 +61,8 @@ class Install extends Migration
      * Adds the foreign key tying Auth Kit's tokens to Craft's users.
      *
      * Tokens are owned by their user — CASCADE so deleting a user prunes their
-     * outstanding tokens.
+     * outstanding tokens. `userId` is nullable: a registration token has no user
+     * yet, and the foreign key simply skips the reference check for that null.
      *
      * @author Michael Thomas
      * @since 1.0.0
@@ -96,7 +97,9 @@ class Install extends Migration
         if (!$this->db->tableExists(Table::TOKENS)) {
             $this->createTable(Table::TOKENS, [
                 'id' => $this->primaryKey(),
-                'userId' => $this->integer()->notNull(),
+                // Nullable so a registration token can be issued before its
+                // user exists — the email lives in the payload until verify time.
+                'userId' => $this->integer(),
                 'type' => $this->string()->notNull(),
                 'tokenHash' => $this->char(64)->notNull(),
                 'expiryDate' => $this->dateTime()->notNull(),
