@@ -1,20 +1,24 @@
 # Release Notes for Auth Kit
 
-## 1.2.0 - Unreleased
+## 1.2.0 - 2026-07-13
 
-### Changed
-- `Tokens::issueRegistration()` now proceeds for a **pending** address exactly
-  as for an unknown one — it mints and emails a signup link so the holder can
-  prove mailbox possession and finish activating — and refuses (equalized) only
-  an address that already maps to an active, suspended, or locked account.
-  Previously it refused an existing user of any status, which stranded a pending
-  account: a unified sign-in/sign-up endpoint routed it to the login path, which
-  refuses a non-active user, so it could never activate. The enumeration and
-  timing guarantees are unchanged (the pending branch does the same token-write
-  and email work as the unknown branch; the refusal branches stay equalized).
-  This adjusts 1.1.0's still-unreleased registration feature.
+> This release folds in the never-tagged 1.1.0 work (registration tokens), so
+> it is the direct successor to 1.0.1.
 
 ### Added
+- Registration tokens — a third passwordless credential type (`register`) for
+  an address that has no account yet. `Tokens::issueRegistration()` emails an
+  unguessable, single-use, TTL'd link and mints no user row (the email lives in
+  the token payload); `Tokens::consumeRegistration()` burns the token and
+  returns it, proving mailbox possession without creating or resolving a user —
+  the consuming plugin owns the account decision. Registration is the inverse of
+  a login issuance: it proceeds only for an unknown or **pending** address (a
+  pending account re-proves mailbox possession so it can finish activating) and
+  refuses (silently, timing-equalized) an address that already maps to an
+  active, suspended, or locked account, so a unified sign-in/sign-up endpoint
+  stays enumeration-safe across both branches.
+- `auth_kit_register` editable system message backing the registration email,
+  and an overridable `Tokens::$registrationRoute` for the verify URL.
 - Audit-event contract — the neutral cooperation seam for authentication audit
   logging, mirroring the `passwords` registry. Emitters (Warden, Warp) describe
   an auth fact with the frozen `AuthEvent` value object (event-name constants
@@ -30,8 +34,15 @@
   recognize. `details` is scalar-only and carries no PII — enforced at
   construction.
 
+### Changed
+- `authkit_tokens.userId` is now nullable, so a registration token can be issued
+  before its user exists. The change is a backward-compatible constraint
+  loosening (a delta migration drops and re-adds the foreign key, which still
+  enforces referential integrity for every non-null value); the plugin schema
+  version is bumped to 1.1.0.
+
 ### Security
-- `Tokens::issueRegistration()` now validates the address format and refuses a
+- `Tokens::issueRegistration()` validates the address format and refuses a
   malformed one through the same equalized path a taken address takes, so a bad
   address is timing-indistinguishable from an existing account.
 - Passwordless login tokens are no longer honored for a **locked** account.
@@ -40,28 +51,6 @@
   locked account straight in off a stale token. The consume path now checks the
   lock explicitly and fails closed (the token is still burned), mirroring the
   suspended path.
-
-## 1.1.0 - Unreleased
-
-### Added
-- Registration tokens — a third passwordless credential type (`register`) for
-  an address that has no account yet. `Tokens::issueRegistration()` emails an
-  unguessable, single-use, TTL'd link and mints no user row (the email lives in
-  the token payload); `Tokens::consumeRegistration()` burns the token and
-  returns it, proving mailbox possession without creating or resolving a user —
-  the consuming plugin owns the account decision. Registration is the inverse of
-  a login issuance: it proceeds only for an unknown address and refuses (silently,
-  timing-equalized) any existing user of any status, so a unified sign-in/sign-up
-  endpoint stays enumeration-safe across both branches.
-- `auth_kit_register` editable system message backing the registration email,
-  and an overridable `Tokens::$registrationRoute` for the verify URL.
-
-### Changed
-- `authkit_tokens.userId` is now nullable, so a registration token can be issued
-  before its user exists. The change is a backward-compatible constraint
-  loosening (a delta migration drops and re-adds the foreign key, which still
-  enforces referential integrity for every non-null value); the plugin schema
-  version is bumped to 1.1.0.
 
 ## 1.0.1 - 2026-07-11
 

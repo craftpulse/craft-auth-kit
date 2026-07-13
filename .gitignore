@@ -6,3 +6,8 @@
 .phpunit.result.cache
 .DS_Store
 .claude/settings.local.json
+
+# AI build-planning artifacts, local only
+/PLAN.md
+/BUILD.md
+/REVIEW-*.md
