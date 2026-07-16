@@ -1,5 +1,37 @@
 # Release Notes for Auth Kit
 
+## 1.4.0 - 2026-07-16
+
+### Added
+- Per-consumer issuance scoping, so two plugins sharing the token store no
+  longer interfere: `issueMagicLink()` / `issueOtp()` / `issueRegistration()`
+  accept a per-issuance options array (`origin`, `route`, `ttl`, `digits`,
+  `maxAttempts`, `perEmailLimit`, `perEmailWindow`) that overrides the shared
+  service defaults for that one issuance; unknown or malformed options are
+  refused loudly. The new `origin` label (the consuming plugin's handle) is
+  stored on the token, and every consume (`consumeMagicLink()` /
+  `consumeOtp()` / `consumeRegistration()`) matches it strictly: a token
+  presented at another consumer's endpoint is refused and left unburned for
+  its rightful one, per-origin OTPs neither supersede nor consume each other,
+  and the per-address issuance throttle keeps a separate bucket per origin.
+  A null origin scopes to legacy (pre-1.4.0) tokens only. In-flight tokens
+  issued before an upgrade carry no origin and will not verify through a
+  consumer that now passes one — bounded by the token TTL (15 minutes by
+  default).
+- `Passkeys::verifyCreation()` and `Passkeys::deletePasskey()` accept an
+  optional per-call recent-auth window, so each consumer enforces its own
+  policy instead of mutating the shared `recentAuthDuration` default.
+- `authkit_tokens.origin` column (schema 1.2.0); existing rows keep a null
+  origin.
+
+### Deprecated
+- Mutating the shared `Tokens` service properties (`magicLinkRoute`,
+  `registrationRoute`, `tokenTtl`, `otpDigits`, `otpMaxAttempts`,
+  `perEmailLimit`, `perEmailWindow`) and `Passkeys::$recentAuthDuration` from
+  consuming plugins. They remain as defaults, but with more than one consumer
+  installed the last writer silently wins — pass per-issuance options and
+  per-call windows instead.
+
 ## 1.3.0 - 2026-07-16
 
 ### Added

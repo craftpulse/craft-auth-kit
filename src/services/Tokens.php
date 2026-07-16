@@ -21,6 +21,7 @@ use craftpulse\authkit\db\Table;
 use craftpulse\authkit\events\TokenEvent;
 use craftpulse\authkit\models\Token;
 use craftpulse\authkit\records\Token as TokenRecord;
+use InvalidArgumentException;
 use Throwable;
 use yii\base\Component;
 use yii\caching\CacheInterface;
@@ -229,13 +230,20 @@ class Tokens extends Component
      * if the token is unknown, expired, already used, canceled by a handler,
      * or belongs to an account that is no longer active.
      *
+     * The `origin` scopes the lookup strictly: a consumer passing its own
+     * origin only ever sees tokens issued under that origin, and a legacy
+     * (null-origin) consume only sees legacy tokens — a token presented at
+     * the wrong consumer's endpoint is refused AND left unburned for its
+     * rightful one.
+     *
      * @param string $rawToken the raw token from the login URL
+     * @param string|null $origin the consuming plugin's origin label, or null for legacy scope
      * @return User|null the user to log in, or null on any failure
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    public function consumeMagicLink(string $rawToken): ?User
+    public function consumeMagicLink(string $rawToken, ?string $origin = null): ?User
     {
         $rawToken = trim($rawToken);
 
@@ -245,6 +253,7 @@ class Tokens extends Component
 
         $record = TokenRecord::findOne([
             'type' => Token::TYPE_MAGIC_LINK,
+            'origin' => $origin,
             'tokenHash' => hash('sha256', $rawToken),
         ]);
 
@@ -264,14 +273,19 @@ class Tokens extends Component
      * compared in constant time, and on mismatch the attempt counter is
      * incremented — once [[maxAttempts]] failures accrue the code is burned.
      *
+     * The `origin` scopes the lookup strictly (see [[consumeMagicLink()]]):
+     * only the newest live code issued under the consuming plugin's own
+     * origin is considered.
+     *
      * @param string $email the address the code was issued to
      * @param string $code the submitted OTP code
+     * @param string|null $origin the consuming plugin's origin label, or null for legacy scope
      * @return User|null the user to log in, or null on any failure
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    public function consumeOtp(string $email, string $code): ?User
+    public function consumeOtp(string $email, string $code, ?string $origin = null): ?User
     {
         $email = trim($email);
         $code = trim($code);
@@ -291,7 +305,7 @@ class Tokens extends Component
         }
 
         $record = TokenRecord::find()
-            ->where(['type' => Token::TYPE_OTP, 'userId' => (int)$user->id, 'dateConsumed' => null])
+            ->where(['type' => Token::TYPE_OTP, 'origin' => $origin, 'userId' => (int)$user->id, 'dateConsumed' => null])
             ->orderBy(['id' => SORT_DESC])
             ->one();
 
@@ -342,13 +356,16 @@ class Tokens extends Component
      * the consuming plugin owns the account decision (create, activate, log in)
      * from the returned model.
      *
+     * The `origin` scopes the lookup strictly (see [[consumeMagicLink()]]).
+     *
      * @param string $rawToken the raw token from the registration URL
+     * @param string|null $origin the consuming plugin's origin label, or null for legacy scope
      * @return Token|null the burned token, or null on any failure
      *
      * @author Michael Thomas
      * @since 1.1.0
      */
-    public function consumeRegistration(string $rawToken): ?Token
+    public function consumeRegistration(string $rawToken, ?string $origin = null): ?Token
     {
         $rawToken = trim($rawToken);
 
@@ -358,6 +375,7 @@ class Tokens extends Component
 
         $record = TokenRecord::findOne([
             'type' => Token::TYPE_REGISTER,
+            'origin' => $origin,
             'tokenHash' => hash('sha256', $rawToken),
         ]);
 
@@ -377,14 +395,17 @@ class Tokens extends Component
      *
      * @param string $email the address to send a login link to
      * @param string|null $returnUrl the validated URL to return to after login
+     * @param array<string, mixed> $options per-issuance overrides — `origin`, `route`, `ttl`, `perEmailLimit`, `perEmailWindow` (see [[_normalizeOptions()]])
      * @return bool whether a link was issued
+     * @throws InvalidArgumentException on an unknown or malformed option
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    public function issueMagicLink(string $email, ?string $returnUrl = null): bool
+    public function issueMagicLink(string $email, ?string $returnUrl = null, array $options = []): bool
     {
-        $user = $this->_resolveIssuableUser($email);
+        $options = $this->_normalizeOptions($options, ['origin', 'route', 'ttl', 'perEmailLimit', 'perEmailWindow']);
+        $user = $this->_resolveIssuableUser($email, $options);
 
         if ($user === null) {
             return false;
@@ -393,7 +414,7 @@ class Tokens extends Component
         $rawToken = bin2hex(random_bytes(self::TOKEN_BYTES));
         $payload = ($returnUrl !== null && $returnUrl !== '') ? ['returnUrl' => $returnUrl] : null;
 
-        $token = $this->_buildToken($user, Token::TYPE_MAGIC_LINK, $rawToken, null, $payload);
+        $token = $this->_buildToken($user, Token::TYPE_MAGIC_LINK, $rawToken, null, $payload, $options);
 
         if (!$this->_saveToken($token)) {
             return false;
@@ -405,7 +426,7 @@ class Tokens extends Component
             $params['returnUrl'] = $returnUrl;
         }
 
-        $url = UrlHelper::siteUrl($this->magicLinkRoute, $params);
+        $url = UrlHelper::siteUrl($options['route'] ?? $this->magicLinkRoute, $params);
         $this->_sendEmail(self::MESSAGE_KEY_MAGIC_LINK, (string)$user->email, ['link' => $url, 'user' => $user]);
 
         $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => $user]));
@@ -422,25 +443,29 @@ class Tokens extends Component
      * public must respond identically regardless, to stay enumeration-safe.
      *
      * @param string $email the address to send a code to
+     * @param array<string, mixed> $options per-issuance overrides — `origin`, `ttl`, `digits`, `maxAttempts`, `perEmailLimit`, `perEmailWindow` (see [[_normalizeOptions()]])
      * @return bool whether a code was issued
+     * @throws InvalidArgumentException on an unknown or malformed option
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    public function issueOtp(string $email): bool
+    public function issueOtp(string $email, array $options = []): bool
     {
-        $user = $this->_resolveIssuableUser($email);
+        $options = $this->_normalizeOptions($options, ['origin', 'ttl', 'digits', 'maxAttempts', 'perEmailLimit', 'perEmailWindow']);
+        $user = $this->_resolveIssuableUser($email, $options);
 
         if ($user === null) {
             return false;
         }
 
-        // Supersede any prior unconsumed OTP for this user so only the newest
-        // code is live — an attacker cannot keep an old code's attempt budget.
-        $this->_supersedeOtps((int)$user->id);
+        // Supersede any prior unconsumed OTP for this user (within the same
+        // origin) so only the newest code is live — an attacker cannot keep an
+        // old code's attempt budget, and one consumer cannot burn another's code.
+        $this->_supersedeOtps((int)$user->id, $options['origin'] ?? null);
 
-        $code = $this->_generateOtpCode();
-        $token = $this->_buildToken($user, Token::TYPE_OTP, $code, $this->otpMaxAttempts, null);
+        $code = $this->_generateOtpCode($options['digits'] ?? null);
+        $token = $this->_buildToken($user, Token::TYPE_OTP, $code, $options['maxAttempts'] ?? $this->otpMaxAttempts, null, $options);
 
         if (!$this->_saveToken($token)) {
             return false;
@@ -472,13 +497,16 @@ class Tokens extends Component
      *
      * @param string $email the address to send a registration link to
      * @param string|null $returnUrl the validated URL to return to after signup
+     * @param array<string, mixed> $options per-issuance overrides — `origin`, `route`, `ttl`, `perEmailLimit`, `perEmailWindow` (see [[_normalizeOptions()]])
      * @return bool whether a link was issued
+     * @throws InvalidArgumentException on an unknown or malformed option
      *
      * @author Michael Thomas
      * @since 1.1.0
      */
-    public function issueRegistration(string $email, ?string $returnUrl = null): bool
+    public function issueRegistration(string $email, ?string $returnUrl = null, array $options = []): bool
     {
+        $options = $this->_normalizeOptions($options, ['origin', 'route', 'ttl', 'perEmailLimit', 'perEmailWindow']);
         $email = trim($email);
 
         if ($email === '') {
@@ -496,7 +524,7 @@ class Tokens extends Component
             return false;
         }
 
-        if (!$this->_withinEmailThrottle($email)) {
+        if (!$this->_withinEmailThrottle($email, $options)) {
             return false;
         }
 
@@ -522,7 +550,7 @@ class Tokens extends Component
             $payload['returnUrl'] = $returnUrl;
         }
 
-        $token = $this->_buildRegistrationToken($rawToken, $payload);
+        $token = $this->_buildRegistrationToken($rawToken, $payload, $options);
 
         if (!$this->_saveToken($token)) {
             return false;
@@ -534,7 +562,7 @@ class Tokens extends Component
             $params['returnUrl'] = $returnUrl;
         }
 
-        $url = UrlHelper::siteUrl($this->registrationRoute, $params);
+        $url = UrlHelper::siteUrl($options['route'] ?? $this->registrationRoute, $params);
         $this->_sendEmail(self::MESSAGE_KEY_REGISTER, $email, ['link' => $url, 'email' => $email]);
 
         $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => null]));
@@ -560,6 +588,52 @@ class Tokens extends Component
     // =========================================================================
 
     /**
+     * Validates and normalizes a per-issuance options array.
+     *
+     * Options override the shared service defaults for one issuance, so two
+     * consuming plugins never depend on mutable singleton state: `origin`
+     * (?string, ≤32 — the consumer's label, stored on the token and matched
+     * strictly at consume time), `route` (?string — the verify route for the
+     * emailed URL), `ttl`, `digits`, `maxAttempts`, `perEmailLimit`,
+     * `perEmailWindow` (positive ints). Unknown keys and malformed values are
+     * refused loudly — this is a security surface, not a config grab-bag.
+     *
+     * @param array<string, mixed> $options the caller-supplied options
+     * @param array<int, string> $allowed the keys this issuance type accepts
+     * @return array<string, mixed> the validated options
+     * @throws InvalidArgumentException on an unknown key or malformed value
+     *
+     * @author Michael Thomas
+     * @since 1.4.0
+     */
+    private function _normalizeOptions(array $options, array $allowed): array
+    {
+        foreach (array_keys($options) as $key) {
+            if (!in_array($key, $allowed, true)) {
+                throw new InvalidArgumentException("Unknown token issuance option \"{$key}\".");
+            }
+        }
+
+        foreach (['origin', 'route'] as $key) {
+            if (array_key_exists($key, $options) && !is_string($options[$key])) {
+                throw new InvalidArgumentException("Token issuance option \"{$key}\" must be a string.");
+            }
+        }
+
+        if (isset($options['origin']) && ($options['origin'] === '' || strlen($options['origin']) > 32)) {
+            throw new InvalidArgumentException('Token issuance option "origin" must be 1-32 characters.');
+        }
+
+        foreach (['ttl', 'digits', 'maxAttempts', 'perEmailLimit', 'perEmailWindow'] as $key) {
+            if (array_key_exists($key, $options) && (!is_int($options[$key]) || $options[$key] < 1)) {
+                throw new InvalidArgumentException("Token issuance option \"{$key}\" must be a positive integer.");
+            }
+        }
+
+        return $options;
+    }
+
+    /**
      * Builds an unsaved registration token — user-less, its target email held
      * in the payload.
      *
@@ -569,18 +643,20 @@ class Tokens extends Component
      *
      * @param string $rawToken the raw token whose hash is stored
      * @param array<string, mixed> $payload the issuance metadata (email, returnUrl)
+     * @param array<string, mixed> $options the normalized issuance options
      * @return Token
      *
      * @author Michael Thomas
      * @since 1.1.0
      */
-    private function _buildRegistrationToken(string $rawToken, array $payload): Token
+    private function _buildRegistrationToken(string $rawToken, array $payload, array $options = []): Token
     {
         return new Token([
             'userId' => null,
             'type' => Token::TYPE_REGISTER,
+            'origin' => $options['origin'] ?? null,
             'tokenHash' => hash('sha256', $rawToken),
-            'expiryDate' => Carbon::now()->addSeconds($this->tokenTtl),
+            'expiryDate' => Carbon::now()->addSeconds($options['ttl'] ?? $this->tokenTtl),
             'maxAttempts' => null,
             'payload' => $payload,
         ]);
@@ -594,20 +670,22 @@ class Tokens extends Component
      * @param string $rawToken the raw token whose hash is stored
      * @param int|null $maxAttempts the failed-attempt cap, or null for none
      * @param array<string, mixed>|null $payload arbitrary issuance metadata
+     * @param array<string, mixed> $options the normalized issuance options
      * @return Token
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    private function _buildToken(User $user, string $type, string $rawToken, ?int $maxAttempts, ?array $payload): Token
+    private function _buildToken(User $user, string $type, string $rawToken, ?int $maxAttempts, ?array $payload, array $options = []): Token
     {
         return new Token([
             'userId' => (int)$user->id,
             'type' => $type,
+            'origin' => $options['origin'] ?? null,
             'tokenHash' => $type === Token::TYPE_OTP
                 ? $this->_hashOtpCode($user, $rawToken)
                 : hash('sha256', $rawToken),
-            'expiryDate' => Carbon::now()->addSeconds($this->tokenTtl),
+            'expiryDate' => Carbon::now()->addSeconds($options['ttl'] ?? $this->tokenTtl),
             'maxAttempts' => $maxAttempts,
             'payload' => $payload,
         ]);
@@ -756,11 +834,12 @@ class Tokens extends Component
      * @author Michael Thomas
      * @since 1.0.0
      */
-    private function _generateOtpCode(): string
+    private function _generateOtpCode(?int $digits = null): string
     {
-        $max = (10 ** $this->otpDigits) - 1;
+        $digits ??= $this->otpDigits;
+        $max = (10 ** $digits) - 1;
 
-        return str_pad((string)random_int(0, $max), $this->otpDigits, '0', STR_PAD_LEFT);
+        return str_pad((string)random_int(0, $max), $digits, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -843,12 +922,13 @@ class Tokens extends Component
      * indistinguishable.
      *
      * @param string $email the address being issued to
+     * @param array<string, mixed> $options the normalized issuance options (throttle overrides)
      * @return User|null the active user, or null if issuance must not proceed
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    private function _resolveIssuableUser(string $email): ?User
+    private function _resolveIssuableUser(string $email, array $options = []): ?User
     {
         $email = trim($email);
 
@@ -858,7 +938,7 @@ class Tokens extends Component
             return null;
         }
 
-        if (!$this->_withinEmailThrottle($email)) {
+        if (!$this->_withinEmailThrottle($email, $options)) {
             return null;
         }
 
@@ -899,6 +979,7 @@ class Tokens extends Component
         $record->expiryDate = (string)Db::prepareDateForDb($token->expiryDate);
         $record->attempts = $token->attempts;
         $record->maxAttempts = $token->maxAttempts;
+        $record->origin = $token->origin;
         $record->payload = $token->payload !== null ? Json::encode($token->payload) : null;
         $record->save(false);
 
@@ -938,16 +1019,17 @@ class Tokens extends Component
      * only live one.
      *
      * @param int $userId the user whose prior OTPs are superseded
+     * @param string|null $origin the issuing origin — supersede stays within it
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    private function _supersedeOtps(int $userId): void
+    private function _supersedeOtps(int $userId, ?string $origin = null): void
     {
         Db::update(
             Table::TOKENS,
             ['dateConsumed' => Db::prepareDateForDb(Carbon::now())],
-            ['type' => Token::TYPE_OTP, 'userId' => $userId, 'dateConsumed' => null],
+            ['type' => Token::TYPE_OTP, 'origin' => $origin, 'userId' => $userId, 'dateConsumed' => null],
         );
     }
 
@@ -962,22 +1044,28 @@ class Tokens extends Component
      * rate limiter compounds with this throttle.
      *
      * @param string $email the address being issued to
+     * @param array<string, mixed> $options the normalized issuance options (`origin`, `perEmailLimit`, `perEmailWindow`)
      * @return bool whether issuance may proceed
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    private function _withinEmailThrottle(string $email): bool
+    private function _withinEmailThrottle(string $email, array $options = []): bool
     {
         $cache = $this->_cache();
-        $key = 'authkit:token:throttle:' . hash('sha256', strtolower($email));
+
+        // The bucket is origin-scoped so one consumer exhausting its budget
+        // never starves another; the mailbox's total exposure is the sum of
+        // the (small) per-consumer budgets.
+        $origin = $options['origin'] ?? null;
+        $key = 'authkit:token:throttle:' . ($origin !== null ? "{$origin}:" : '') . hash('sha256', strtolower($email));
         $count = (int)$cache->get($key);
 
-        if ($count >= $this->perEmailLimit) {
+        if ($count >= ($options['perEmailLimit'] ?? $this->perEmailLimit)) {
             return false;
         }
 
-        $cache->set($key, $count + 1, $this->perEmailWindow);
+        $cache->set($key, $count + 1, $options['perEmailWindow'] ?? $this->perEmailWindow);
 
         return true;
     }

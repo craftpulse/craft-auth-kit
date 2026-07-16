@@ -95,15 +95,16 @@ class Passkeys extends Component
      *
      * @param User $user the credential's owner
      * @param string $uid the passkey UID to delete
+     * @param int|null $within the consumer's own recent-auth window in seconds, or null for [[recentAuthDuration]]
      * @return bool whether the user held a passkey with that UID and it was removed
      * @throws ForbiddenHttpException if the session has not authenticated within [[recentAuthDuration]] seconds
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    public function deletePasskey(User $user, string $uid): bool
+    public function deletePasskey(User $user, string $uid, ?int $within = null): bool
     {
-        $this->_requireRecentAuth();
+        $this->_requireRecentAuth($within);
 
         $auth = $this->_auth();
         $held = in_array($uid, array_column($auth->getPasskeys($user), 'uid'), true);
@@ -205,15 +206,16 @@ class Passkeys extends Component
      *
      * @param string $credentials the JSON attestation response from the authenticator
      * @param string|null $credentialName an optional label for the passkey
+     * @param int|null $within the consumer's own recent-auth window in seconds, or null for [[recentAuthDuration]]
      * @return bool whether the credential was verified and stored
-     * @throws ForbiddenHttpException if the session has not authenticated within [[recentAuthDuration]] seconds
+     * @throws ForbiddenHttpException if the session has not authenticated within the window
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    public function verifyCreation(string $credentials, ?string $credentialName = null): bool
+    public function verifyCreation(string $credentials, ?string $credentialName = null, ?int $within = null): bool
     {
-        $this->_requireRecentAuth();
+        $this->_requireRecentAuth($within);
 
         return $this->_auth()->verifyPasskeyCreationResponse($credentials, $credentialName);
     }
@@ -247,9 +249,9 @@ class Passkeys extends Component
      * @author Michael Thomas
      * @since 1.0.1
      */
-    private function _requireRecentAuth(): void
+    private function _requireRecentAuth(?int $within = null): void
     {
-        if (!$this->hasRecentAuth()) {
+        if (!$this->hasRecentAuth($within)) {
             throw new ForbiddenHttpException('Recent authentication is required to manage passkeys.');
         }
     }

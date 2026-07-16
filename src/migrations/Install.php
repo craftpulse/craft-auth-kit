@@ -101,6 +101,9 @@ class Install extends Migration
                 // user exists — the email lives in the payload until verify time.
                 'userId' => $this->integer(),
                 'type' => $this->string()->notNull(),
+                // The issuing consumer's label (e.g. a plugin handle). Tokens
+                // are consumed strictly within their origin; null = legacy.
+                'origin' => $this->string(32),
                 'tokenHash' => $this->char(64)->notNull(),
                 'expiryDate' => $this->dateTime()->notNull(),
                 'dateConsumed' => $this->dateTime(),

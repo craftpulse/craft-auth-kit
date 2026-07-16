@@ -120,6 +120,14 @@ class Token extends Model
     public ?array $payload = null;
 
     /**
+     * @var string|null The issuing consumer's label (e.g. a plugin handle).
+     * Tokens are consumed strictly within their origin; null = legacy scope.
+     *
+     * @since 1.4.0
+     */
+    public ?string $origin = null;
+
+    /**
      * @var string|null The sha256 hash of the raw token. Never the raw token itself.
      *
      * @since 1.0.0
@@ -175,6 +183,7 @@ class Token extends Model
         $model->id = (int)$record->id;
         $model->userId = $record->userId !== null ? (int)$record->userId : null;
         $model->type = $record->type;
+        $model->origin = $record->origin ?? null;
         $model->tokenHash = $record->tokenHash;
         $model->expiryDate = DateTimeHelper::toDateTime($record->expiryDate) ?: null;
         $model->dateConsumed = DateTimeHelper::toDateTime($record->dateConsumed) ?: null;
@@ -273,6 +282,7 @@ class Token extends Model
         ];
         $rules[] = [['userId', 'attempts', 'maxAttempts'], 'integer'];
         $rules[] = [['type'], 'in', 'range' => [self::TYPE_MAGIC_LINK, self::TYPE_OTP, self::TYPE_REGISTER]];
+        $rules[] = [['origin'], 'string', 'max' => 32];
         $rules[] = [['tokenHash'], 'string', 'length' => 64];
 
         return $rules;

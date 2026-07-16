@@ -68,7 +68,7 @@ class AuthKit extends Plugin
      *
      * @since 1.0.0
      */
-    public string $schemaVersion = '1.1.0';
+    public string $schemaVersion = '1.2.0';
 
     // Public Methods
     // =========================================================================

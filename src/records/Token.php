@@ -29,6 +29,7 @@ use craftpulse\authkit\db\Table;
  * @property int $id
  * @property int|null $userId
  * @property string $type
+ * @property string|null $origin
  * @property string $tokenHash
  * @property string $expiryDate
  * @property string|null $dateConsumed

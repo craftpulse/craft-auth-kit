@@ -2,7 +2,7 @@
     "name": "craftpulse/craft-auth-kit",
     "description": "Foundational authentication primitives for Craft CMS — passwordless tokens (magic links + email OTP), passkey wrappers, a recent-auth gate, and a password-validator contract. The shared base for the CraftPulse security ecosystem.",
     "type": "craft-plugin",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "license": "MIT",
     "keywords": [
         "craft",

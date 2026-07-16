@@ -114,6 +114,16 @@ it('refuses to verify a passkey creation when the session has not authenticated 
     passkeysService()->verifyCreation('{}');
 })->throws(ForbiddenHttpException::class);
 
+it('honors a caller-supplied recent-auth window on the mutating gate', function() {
+    // Stamped 120s ago: inside the 300s default, outside a caller's stricter
+    // 60s window — per-call windows let each consumer keep its own policy
+    // without mutating the shared service default.
+    Craft::$app->getSession()->set(Passkeys::SESSION_RECENT_AUTH_KEY, time() - 120);
+    $user = passkeyUser();
+
+    passkeysService()->deletePasskey($user, StringHelper::UUID(), 60);
+})->throws(ForbiddenHttpException::class);
+
 it('produces serialized creation options for a user', function() {
     $user = passkeyUser();
 
