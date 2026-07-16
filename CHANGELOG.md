@@ -1,5 +1,21 @@
 # Release Notes for Auth Kit
 
+## 1.3.0 - 2026-07-16
+
+### Added
+- The `SESSION_REVOKED` audit event's `scope` vocabulary gains `frontchannel`
+  (IdP-initiated front-channel logout) and `global` (Global Token Revocation)
+  alongside the existing `single` / `others` / `backchannel`, so emitters can
+  attribute a session kill to the channel that actually caused it. Scope values
+  remain additive vocabulary: sinks ignore values they don't recognize.
+
+### Changed
+- `Passkeys::deletePasskey()` now returns a bool reporting whether a credential
+  was actually removed. Core's delete is a silent no-op for an unknown UID, so
+  the wrapper performs the presence check; consumers use the return value to
+  keep audit trails factual instead of recording deletions that never happened.
+  Existing callers that ignore the return value are unaffected.
+
 ## 1.2.0 - 2026-07-13
 
 > This release folds in the never-tagged 1.1.0 work (registration tokens), so

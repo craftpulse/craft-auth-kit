@@ -87,14 +87,15 @@ it('reports a fresh user as having no passkeys', function() {
         ->and(passkeysService()->getPasskeys($user))->toBe([]);
 });
 
-it('deletes a nonexistent passkey without error', function() {
+it('reports false when deleting a nonexistent passkey', function() {
+    // Core's delete is a silent no-op for an unknown UID; the boolean return
+    // is what lets consumers keep audit trails factual.
     $user = passkeyUser();
     $service = passkeysService();
     $service->stampRecentAuth();
 
-    $service->deletePasskey($user, StringHelper::UUID());
-
-    expect($service->hasPasskeys($user))->toBeFalse();
+    expect($service->deletePasskey($user, StringHelper::UUID()))->toBeFalse()
+        ->and($service->hasPasskeys($user))->toBeFalse();
 });
 
 // Recent-auth enforcement

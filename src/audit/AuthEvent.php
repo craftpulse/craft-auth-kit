@@ -132,7 +132,16 @@ final class AuthEvent
 
     /**
      * @var string A session was revoked (`session.revoked`); `details` carries
-     * the `scope` (`single` | `others` | `backchannel`).
+     * the `scope` (`single` | `others` | `backchannel` | `frontchannel` |
+     * `global`). `single` and `others` are user-initiated device revocations;
+     * `backchannel` and `frontchannel` are IdP-initiated logout channels;
+     * `global` is a Global Token Revocation request. Scope values are additive
+     * vocabulary — sinks ignore values they don't recognize.
+     *
+     * With `OUTCOME_FAILURE`, the event records an attempted revocation that
+     * was refused before any session was touched — e.g. a back-channel
+     * logout_token that failed signature validation. No session died; the
+     * attempt itself is the audit fact.
      *
      * @since 1.2.0
      */

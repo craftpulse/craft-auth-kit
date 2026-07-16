@@ -85,17 +85,36 @@ class Passkeys extends Component
      * Core scopes the delete to `userId + uid`, so `$user` is the whole
      * authorization boundary — always pass the authenticated user.
      *
+     * Returns whether a credential was actually removed. Core's delete is a
+     * silent no-op for an unknown UID, so the presence check happens here —
+     * consumers use the return value to keep audit trails factual (never
+     * record a deletion that did not happen). The check-then-delete is not
+     * atomic: two concurrent deletes of the same UID can both observe it as
+     * held and double-count one removal in an audit trail — an accepted
+     * residual (core's delete itself is idempotent; no authorization impact).
+     *
      * @param User $user the credential's owner
      * @param string $uid the passkey UID to delete
+     * @return bool whether the user held a passkey with that UID and it was removed
      * @throws ForbiddenHttpException if the session has not authenticated within [[recentAuthDuration]] seconds
      *
      * @author Michael Thomas
      * @since 1.0.0
      */
-    public function deletePasskey(User $user, string $uid): void
+    public function deletePasskey(User $user, string $uid): bool
     {
         $this->_requireRecentAuth();
-        $this->_auth()->deletePasskey($user, $uid);
+
+        $auth = $this->_auth();
+        $held = in_array($uid, array_column($auth->getPasskeys($user), 'uid'), true);
+
+        if (!$held) {
+            return false;
+        }
+
+        $auth->deletePasskey($user, $uid);
+
+        return true;
     }
 
     /**
