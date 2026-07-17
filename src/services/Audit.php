@@ -13,6 +13,7 @@ namespace craftpulse\authkit\services;
 use Craft;
 use craftpulse\authkit\audit\AuditSinkInterface;
 use craftpulse\authkit\audit\AuthEvent;
+use craftpulse\authkit\events\AuditRecordEvent;
 use craftpulse\authkit\events\RegisterAuditSinksEvent;
 use Throwable;
 use yii\base\Component;
@@ -49,6 +50,17 @@ class Audit extends Component
      * @since 1.2.0
      */
     public const EVENT_REGISTER_AUDIT_SINKS = 'registerAuditSinks';
+
+    /**
+     * @event AuditRecordEvent The event that is triggered after [[record()]]
+     * has fanned an [[AuthEvent]] out to every registered sink. It lets a
+     * downstream observer relay the event elsewhere (chiefly the Audit Kit
+     * bridge, which maps it onto the neutral audit bus) without registering as
+     * an Auth Kit sink. Purely additive: it fires after the legacy sink
+     * fan-out and changes nothing about it.
+     * @since 1.5.0
+     */
+    public const EVENT_AFTER_RECORD = 'afterRecord';
 
     // Private Properties
     // =========================================================================
@@ -112,6 +124,14 @@ class Audit extends Component
                     __METHOD__,
                 );
             }
+        }
+
+        // Additive bridge seam: after the legacy sink fan-out, let a downstream
+        // observer (the Audit Kit bridge) relay this event onto the neutral
+        // audit bus. Fired unconditionally — with no listener it is a cheap
+        // no-op, and it changes nothing about the fan-out above.
+        if ($this->hasEventHandlers(self::EVENT_AFTER_RECORD)) {
+            $this->trigger(self::EVENT_AFTER_RECORD, new AuditRecordEvent(['event' => $event]));
         }
     }
 

@@ -1,5 +1,16 @@
 # Release Notes for Auth Kit
 
+## 1.5.0 - 2026-07-17
+
+### Added
+- `Audit::EVENT_AFTER_RECORD`, fired once after `Audit::record()` fans an
+  `AuthEvent` out to its registered sinks, carrying the recorded event on a new
+  `events\AuditRecordEvent`. It lets a downstream observer (the Audit Kit
+  bridge) relay authentication events onto the neutral audit bus without
+  registering as an Auth Kit sink. Purely additive and zero behaviour change:
+  the event fires after the existing sink fan-out, `AuthEvent` and the sink
+  interface are untouched, and with no listener attached it is a cheap no-op.
+
 ## 1.4.0 - 2026-07-16
 
 ### Added

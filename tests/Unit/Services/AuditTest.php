@@ -14,6 +14,7 @@
 
 use craftpulse\authkit\audit\AuditSinkInterface;
 use craftpulse\authkit\audit\AuthEvent;
+use craftpulse\authkit\events\AuditRecordEvent;
 use craftpulse\authkit\events\RegisterAuditSinksEvent;
 use craftpulse\authkit\services\Audit;
 
@@ -83,6 +84,42 @@ it('isolates a throwing sink: it neither bubbles nor blocks the sinks after it',
         AuthEvent::SESSION_REVOKED,
         AuthEvent::SESSION_REVOKED,
     ]);
+});
+
+it('fires EVENT_AFTER_RECORD once, carrying the recorded event, after the sink fan-out', function() {
+    $order = [];
+    $service = new Audit();
+
+    $log = [];
+    $sink = recordingSink($log);
+    $service->setSinks([$sink]);
+
+    $received = null;
+    $service->on(Audit::EVENT_AFTER_RECORD, function(AuditRecordEvent $event) use (&$order, &$received): void {
+        $order[] = 'after';
+        $received = $event->event;
+    });
+
+    // Wrap the sink call order: the sink logs to $log, the after-record
+    // handler logs to $order — assert the after-record handler ran last.
+    $original = new AuthEvent(AuthEvent::LOGIN_OTP, 'warp', userId: 9);
+    $service->record($original);
+
+    expect($log)->toBe([AuthEvent::LOGIN_OTP])
+        ->and($order)->toBe(['after'])
+        ->and($received)->toBe($original);
+});
+
+it('does not fire EVENT_AFTER_RECORD when no listener is attached', function() {
+    // With no listener the record() call is a cheap no-op on the bridge seam —
+    // it must not throw and must still fan out to sinks.
+    $log = [];
+    $service = new Audit();
+    $service->setSinks([recordingSink($log)]);
+
+    $service->record(new AuthEvent(AuthEvent::LOGIN_SSO, 'warden'));
+
+    expect($log)->toBe([AuthEvent::LOGIN_SSO]);
 });
 
 it('assembles sinks from the registration event on first use', function() {
