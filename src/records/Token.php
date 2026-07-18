@@ -25,11 +25,15 @@ use craftpulse\authkit\db\Table;
  *
  * `userId` is nullable: a registration token is issued before any user row
  * exists, so it carries a null `userId` and the target email in its payload.
+ * An email-bound guest OTP is user-less too — it proves control of an arbitrary
+ * mailbox and carries the sha256 of the lowercased email in `subject` as its
+ * lookup key (never the raw address).
  *
  * @property int $id
  * @property int|null $userId
  * @property string $type
  * @property string|null $origin
+ * @property string|null $subject
  * @property string $tokenHash
  * @property string $expiryDate
  * @property string|null $dateConsumed

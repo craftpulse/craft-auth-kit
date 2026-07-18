@@ -94,6 +94,13 @@ class Tokens extends Component
     public const DUMMY_HASH = '$2y$13$nj9aiBeb7RfEfYP3Cum6Revyu14QelGGxwcnFUKXIrQUitSodEPRi';
 
     /**
+     * @var string The system message key used to compose the guest OTP email.
+     *
+     * @since 1.6.0
+     */
+    public const MESSAGE_KEY_GUEST_OTP = 'auth_kit_guest_otp';
+
+    /**
      * @var string The system message key used to compose the magic-link email.
      *
      * @since 1.0.0
@@ -345,6 +352,96 @@ class Tokens extends Component
     }
 
     /**
+     * Consumes an email-bound guest OTP code and returns whether it proved
+     * control of the mailbox. No user is resolved, nothing is logged in, and no
+     * session is created — the boolean is the whole result, and the consuming
+     * plugin owns whatever attribution or audit trail follows.
+     *
+     * A guest OTP proves inbox control for an arbitrary email, so it is looked
+     * up by the email's `subject` (the sha256 of the lowercased address) rather
+     * than a user: the newest live guest code for the address (within `origin`)
+     * is found, the submitted code is compared in constant time, and on mismatch
+     * the attempt counter is incremented — once [[otpMaxAttempts]] failures
+     * accrue the code is burned, mirroring the user-bound path exactly.
+     *
+     * Every failure branch is uniform: it performs one fixed-cost verification
+     * so a caller cannot distinguish "no code was ever issued" from "a live code
+     * exists but the guess was wrong" by timing.
+     *
+     * This fires no consume event: a guest verification is not an authentication
+     * event, and Auth Kit deliberately keeps its [[\craftpulse\authkit\audit\AuthEvent]]
+     * vocabulary for genuine authentications. Attribution is the consumer's story.
+     *
+     * @param string $email the address the code was issued to
+     * @param string $code the submitted OTP code
+     * @param string $origin the consuming plugin's origin label
+     * @return bool whether the code proved control of the mailbox
+     *
+     * @author Michael Thomas
+     * @since 1.6.0
+     */
+    public function consumeGuestOtp(string $email, string $code, string $origin): bool
+    {
+        $email = trim($email);
+        $code = trim($code);
+
+        if ($email === '' || $code === '') {
+            $this->_equalizeTiming();
+
+            return false;
+        }
+
+        $record = TokenRecord::find()
+            ->where([
+                'type' => Token::TYPE_GUEST_OTP,
+                'origin' => $origin,
+                'subject' => $this->_guestSubject($email),
+                'dateConsumed' => null,
+            ])
+            ->orderBy(['id' => SORT_DESC])
+            ->one();
+
+        if (!$record instanceof TokenRecord) {
+            $this->_equalizeTiming();
+
+            return false;
+        }
+
+        $model = Token::fromRecord($record);
+
+        if (!$model->isUsable()) {
+            // Equalize this branch too: a fast return here would distinguish
+            // "this address has a stale guest code" from "no code ever issued".
+            $this->_equalizeTiming();
+
+            return false;
+        }
+
+        // Constant-time comparison of the submitted code's hash against the
+        // stored hash, so a wrong code is indistinguishable by timing.
+        if (!hash_equals((string)$model->tokenHash, $this->_hashGuestOtpCode($email, $code))) {
+            $this->_registerFailedOtpAttempt($model);
+
+            // Equalize the wrong-code branch: its failed-attempt bookkeeping is a
+            // couple of indexed single-row UPDATEs (single-digit ms), so a fast
+            // return would distinguish "a live guest code exists" from "none".
+            $this->_equalizeTiming();
+
+            return false;
+        }
+
+        // Atomic single-use: burn the code only while it is still unconsumed. A
+        // second submit or a parallel request updates zero rows and is refused.
+        $affected = Db::update(
+            Table::TOKENS,
+            ['dateConsumed' => Db::prepareDateForDb(Carbon::now())],
+            ['id' => $model->id, 'dateConsumed' => null],
+        );
+
+        return $affected === 1;
+    }
+
+    /**
      * Consumes a raw registration token and returns the burned token — whose
      * payload carries the address that proved mailbox possession — or null if
      * the token is unknown, expired, already used, or canceled by a handler.
@@ -476,6 +573,72 @@ class Tokens extends Component
         $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => $user]));
 
         return true;
+    }
+
+    /**
+     * Issues an email-bound guest OTP code to any syntactically valid email and
+     * emails it. Unlike [[issueOtp()]], the address need not map to any user —
+     * the code proves control of an arbitrary mailbox, and the recipient never
+     * becomes a user, is never logged in, and gets no session. Issuing a new
+     * code supersedes (expires) any prior unconsumed guest code for the same
+     * email within the same origin.
+     *
+     * Returns nothing: the issue path never reveals whether a code was sent. An
+     * empty, malformed, or throttled address is dropped silently — there is no
+     * account to enumerate (any valid mailbox is issuable), so no timing
+     * equalizer is needed here, unlike the user-bound issuance which must hide
+     * account existence.
+     *
+     * This fires [[EVENT_AFTER_ISSUE_TOKEN]] with a null user (like a
+     * registration issuance), a token-bookkeeping signal only. It emits no
+     * [[\craftpulse\authkit\audit\AuthEvent]]: proving mailbox control is not an
+     * authentication, and attribution is the consuming plugin's audit story.
+     *
+     * @param string $email the address to send a code to
+     * @param string $origin the consuming plugin's origin label
+     * @param array<string, mixed> $options per-issuance overrides — `ttl`, `digits`, `maxAttempts`, `perEmailLimit`, `perEmailWindow` (see [[_normalizeOptions()]])
+     * @throws InvalidArgumentException on an unknown or malformed option, or a malformed origin
+     *
+     * @author Michael Thomas
+     * @since 1.6.0
+     */
+    public function issueGuestOtp(string $email, string $origin, array $options = []): void
+    {
+        $options = $this->_normalizeOptions($options, ['ttl', 'digits', 'maxAttempts', 'perEmailLimit', 'perEmailWindow']);
+
+        if ($origin === '' || strlen($origin) > 32) {
+            throw new InvalidArgumentException('Guest OTP "origin" must be 1-32 characters.');
+        }
+
+        // The origin travels with the throttle and the token row.
+        $options['origin'] = $origin;
+        $email = trim($email);
+
+        // Any syntactically valid mailbox is issuable, so a bad address reveals
+        // nothing worth equalizing — drop it silently.
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        if (!$this->_withinEmailThrottle($email, $options)) {
+            return;
+        }
+
+        // Supersede any prior unconsumed guest code for this email (within the
+        // same origin) so only the newest is live — an attacker cannot keep an
+        // old code's attempt budget, and one consumer cannot burn another's.
+        $this->_supersedeGuestOtps($email, $origin);
+
+        $code = $this->_generateOtpCode($options['digits'] ?? null);
+        $token = $this->_buildGuestToken($email, $code, $options['maxAttempts'] ?? $this->otpMaxAttempts, $options);
+
+        if (!$this->_saveToken($token)) {
+            return;
+        }
+
+        $this->_sendEmail(self::MESSAGE_KEY_GUEST_OTP, $email, ['code' => $code, 'email' => $email]);
+
+        $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => null]));
     }
 
     /**
@@ -663,6 +826,39 @@ class Tokens extends Component
     }
 
     /**
+     * Builds an unsaved email-bound guest OTP token — user-less, keyed by the
+     * email's `subject` with the code hashed under the same email scope.
+     *
+     * The code is short and guessable, so its stored hash is scoped to the email
+     * (like the user-bound OTP scopes to the user's UID) — two mailboxes holding
+     * the same code produce distinct hashes and never collide on the unique
+     * `tokenHash` index. The `subject` is the lookup key the consume path finds
+     * the row by, before the code is compared.
+     *
+     * @param string $email the mailbox the code proves control of
+     * @param string $code the raw OTP code whose scoped hash is stored
+     * @param int|null $maxAttempts the failed-attempt cap, or null for none
+     * @param array<string, mixed> $options the normalized issuance options
+     * @return Token
+     *
+     * @author Michael Thomas
+     * @since 1.6.0
+     */
+    private function _buildGuestToken(string $email, string $code, ?int $maxAttempts, array $options = []): Token
+    {
+        return new Token([
+            'userId' => null,
+            'type' => Token::TYPE_GUEST_OTP,
+            'origin' => $options['origin'] ?? null,
+            'subject' => $this->_guestSubject($email),
+            'tokenHash' => $this->_hashGuestOtpCode($email, $code),
+            'expiryDate' => Carbon::now()->addSeconds($options['ttl'] ?? $this->tokenTtl),
+            'maxAttempts' => $maxAttempts,
+            'payload' => null,
+        ]);
+    }
+
+    /**
      * Builds an unsaved token model for a user.
      *
      * @param User $user the target user
@@ -843,6 +1039,43 @@ class Tokens extends Component
     }
 
     /**
+     * Computes the lookup subject for a guest OTP — the sha256 of the lowercased,
+     * trimmed email. Never the raw address: the table stores no guest email, so
+     * attribution stays the consuming plugin's concern.
+     *
+     * @param string $email the mailbox the code is bound to
+     * @return string the sha256 subject digest
+     *
+     * @author Michael Thomas
+     * @since 1.6.0
+     */
+    private function _guestSubject(string $email): string
+    {
+        return hash('sha256', strtolower(trim($email)));
+    }
+
+    /**
+     * Hashes a guest OTP code scoped to its email.
+     *
+     * A short numeric code is deterministic across every mailbox, so hashing the
+     * bare code would collide on the unique `tokenHash` index the moment two
+     * emails hold the same code. Scoping the digest to the lowercased email keeps
+     * every stored hash distinct while staying reproducible on the consume side,
+     * where the code is looked up by `subject` and never by hash.
+     *
+     * @param string $email the mailbox the code belongs to
+     * @param string $code the raw OTP code
+     * @return string the scoped sha256 digest
+     *
+     * @author Michael Thomas
+     * @since 1.6.0
+     */
+    private function _hashGuestOtpCode(string $email, string $code): string
+    {
+        return hash('sha256', strtolower(trim($email)) . ':' . $code);
+    }
+
+    /**
      * Hashes an OTP code scoped to its user.
      *
      * A short numeric code is deterministic across the whole user base, so
@@ -980,6 +1213,7 @@ class Tokens extends Component
         $record->attempts = $token->attempts;
         $record->maxAttempts = $token->maxAttempts;
         $record->origin = $token->origin;
+        $record->subject = $token->subject;
         $record->payload = $token->payload !== null ? Json::encode($token->payload) : null;
         $record->save(false);
 
@@ -1012,6 +1246,25 @@ class Tokens extends Component
         } catch (Throwable $e) {
             Craft::error("Could not send the Auth Kit email: {$e->getMessage()}", __METHOD__);
         }
+    }
+
+    /**
+     * Expires every unconsumed guest OTP for an email, so a freshly issued code
+     * is the only live one.
+     *
+     * @param string $email the mailbox whose prior guest codes are superseded
+     * @param string $origin the issuing origin — supersede stays within it
+     *
+     * @author Michael Thomas
+     * @since 1.6.0
+     */
+    private function _supersedeGuestOtps(string $email, string $origin): void
+    {
+        Db::update(
+            Table::TOKENS,
+            ['dateConsumed' => Db::prepareDateForDb(Carbon::now())],
+            ['type' => Token::TYPE_GUEST_OTP, 'origin' => $origin, 'subject' => $this->_guestSubject($email), 'dateConsumed' => null],
+        );
     }
 
     /**

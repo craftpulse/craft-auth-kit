@@ -102,12 +102,12 @@ trait PluginTrait
     }
 
     /**
-     * Registers Auth Kit's editable system messages — the magic-link, OTP, and
-     * registration emails. Subject and body are Twig, rendered with the
+     * Registers Auth Kit's editable system messages — the magic-link, OTP, guest
+     * OTP, and registration emails. Subject and body are Twig, rendered with the
      * variables the tokens service passes to `composeFromKey()`: `link` + `user`
-     * for magic links, `code` + `user` for OTP, and `link` + `email` for
-     * registration (no user exists yet, so the copy addresses the visitor
-     * without a friendly name).
+     * for magic links, `code` + `user` for OTP, `code` + `email` for the guest
+     * OTP, and `link` + `email` for registration (the guest and registration
+     * copy address the visitor without a friendly name, since no user exists).
      *
      * @author Michael Thomas
      * @since 1.0.0
@@ -130,6 +130,13 @@ trait PluginTrait
                     'heading' => Craft::t('auth-kit', 'When someone requests a one-time sign-in code:'),
                     'subject' => Craft::t('auth-kit', 'Your sign-in code'),
                     'body' => Craft::t('auth-kit', "Hi {{ user.friendlyName }},\n\nYour one-time sign-in code is:\n\n{{ code }}\n\nIt expires shortly and can be used only once. If you didn’t request this, you can safely ignore this email."),
+                ]);
+
+                $event->messages[] = new SystemMessage([
+                    'key' => Tokens::MESSAGE_KEY_GUEST_OTP,
+                    'heading' => Craft::t('auth-kit', 'When someone requests a one-time code to verify their email:'),
+                    'subject' => Craft::t('auth-kit', 'Your verification code'),
+                    'body' => Craft::t('auth-kit', "Hi,\n\nYour one-time verification code is:\n\n{{ code }}\n\nIt expires shortly and can be used only once. If you didn’t request this, you can safely ignore this email."),
                 ]);
 
                 $event->messages[] = new SystemMessage([

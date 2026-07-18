@@ -137,6 +137,40 @@ it('accepts a registration token with no userId', function() {
         ->and($token->getErrors())->toBeEmpty();
 });
 
+it('accepts a guest OTP token with no userId but requires its subject', function() {
+    // A guest OTP proves control of an arbitrary mailbox — no user exists — and
+    // is looked up by its subject, so a null userId validates but a null subject
+    // does not.
+    $token = new Token([
+        'userId' => null,
+        'type' => Token::TYPE_GUEST_OTP,
+        'subject' => str_repeat('b', 64),
+        'tokenHash' => str_repeat('a', 64),
+        'expiryDate' => (clone DateTimeHelper::now())->modify('+15 minutes'),
+    ]);
+
+    expect($token->validate())->toBeTrue()
+        ->and($token->getErrors())->toBeEmpty();
+
+    $token->subject = null;
+
+    expect($token->validate())->toBeFalse()
+        ->and($token->getErrors())->toHaveKey('subject');
+});
+
+it('accepts guest-otp as a known token type', function() {
+    $token = new Token([
+        'userId' => null,
+        'type' => Token::TYPE_GUEST_OTP,
+        'subject' => str_repeat('b', 64),
+        'tokenHash' => str_repeat('a', 64),
+        'expiryDate' => (clone DateTimeHelper::now())->modify('+15 minutes'),
+    ]);
+
+    expect($token->validate())->toBeTrue()
+        ->and($token->getErrors())->not->toHaveKey('type');
+});
+
 it('still requires a userId for a magic-link token', function() {
     $token = new Token([
         'userId' => null,

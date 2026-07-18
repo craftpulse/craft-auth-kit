@@ -44,6 +44,16 @@ class Token extends Model
     public const TYPE_MAGIC_LINK = 'magic-link';
 
     /**
+     * @var string The email-bound guest OTP token type — a short numeric code,
+     * attempt-capped, bound to an arbitrary email rather than a user. Carries a
+     * null `userId` and the sha256 of the lowercased email in `subject`. Proves
+     * control of the mailbox; the holder never becomes a user or a session.
+     *
+     * @since 1.6.0
+     */
+    public const TYPE_GUEST_OTP = 'guest-otp';
+
+    /**
      * @var string The email OTP token type — a short numeric code, attempt-capped.
      *
      * @since 1.0.0
@@ -128,6 +138,15 @@ class Token extends Model
     public ?string $origin = null;
 
     /**
+     * @var string|null The lookup key for an email-bound guest OTP — the sha256
+     * of the lowercased email, never the raw address. Null for user-bound and
+     * legacy tokens, which are looked up by `userId`.
+     *
+     * @since 1.6.0
+     */
+    public ?string $subject = null;
+
+    /**
      * @var string|null The sha256 hash of the raw token. Never the raw token itself.
      *
      * @since 1.0.0
@@ -184,6 +203,7 @@ class Token extends Model
         $model->userId = $record->userId !== null ? (int)$record->userId : null;
         $model->type = $record->type;
         $model->origin = $record->origin ?? null;
+        $model->subject = $record->subject ?? null;
         $model->tokenHash = $record->tokenHash;
         $model->expiryDate = DateTimeHelper::toDateTime($record->expiryDate) ?: null;
         $model->dateConsumed = DateTimeHelper::toDateTime($record->dateConsumed) ?: null;
@@ -273,17 +293,24 @@ class Token extends Model
     {
         $rules = parent::defineRules();
         $rules[] = [['type', 'tokenHash', 'expiryDate'], 'required'];
-        // A registration token has no user yet — its email lives in the payload
-        // — so userId is required for every other type but optional here.
+        // A user-less token — a registration link (email in the payload) or an
+        // email-bound guest OTP (email hashed into `subject`) — carries no
+        // userId; every other type requires one.
         $rules[] = [
             ['userId'],
             'required',
-            'when' => static fn(self $model): bool => $model->type !== self::TYPE_REGISTER,
+            'when' => static fn(self $model): bool => !in_array($model->type, [self::TYPE_REGISTER, self::TYPE_GUEST_OTP], true),
+        ];
+        // A guest OTP is looked up by its subject, so it must carry one.
+        $rules[] = [
+            ['subject'],
+            'required',
+            'when' => static fn(self $model): bool => $model->type === self::TYPE_GUEST_OTP,
         ];
         $rules[] = [['userId', 'attempts', 'maxAttempts'], 'integer'];
-        $rules[] = [['type'], 'in', 'range' => [self::TYPE_MAGIC_LINK, self::TYPE_OTP, self::TYPE_REGISTER]];
+        $rules[] = [['type'], 'in', 'range' => [self::TYPE_MAGIC_LINK, self::TYPE_OTP, self::TYPE_GUEST_OTP, self::TYPE_REGISTER]];
         $rules[] = [['origin'], 'string', 'max' => 32];
-        $rules[] = [['tokenHash'], 'string', 'length' => 64];
+        $rules[] = [['subject', 'tokenHash'], 'string', 'length' => 64];
 
         return $rules;
     }

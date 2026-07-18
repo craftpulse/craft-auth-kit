@@ -83,6 +83,7 @@ class Install extends Migration
     {
         $this->createIndex(null, Table::TOKENS, ['tokenHash'], true);
         $this->createIndex(null, Table::TOKENS, ['userId']);
+        $this->createIndex(null, Table::TOKENS, ['subject']);
         $this->createIndex(null, Table::TOKENS, ['expiryDate']);
     }
 
@@ -104,6 +105,10 @@ class Install extends Migration
                 // The issuing consumer's label (e.g. a plugin handle). Tokens
                 // are consumed strictly within their origin; null = legacy.
                 'origin' => $this->string(32),
+                // The lookup key for an email-bound guest OTP (the sha256 of the
+                // lowercased email), so a user-less code can be found by its
+                // subject at consume time. Null for user-bound and legacy tokens.
+                'subject' => $this->char(64),
                 'tokenHash' => $this->char(64)->notNull(),
                 'expiryDate' => $this->dateTime()->notNull(),
                 'dateConsumed' => $this->dateTime(),

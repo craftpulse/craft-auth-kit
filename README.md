@@ -49,6 +49,12 @@ $user = $tokens->consumeMagicLink($rawToken);    // ?User
 $tokens->issueOtp($email);                        // bool
 $user = $tokens->consumeOtp($email, $code);       // ?User
 
+// Guest OTP — short numeric code bound to an ARBITRARY mailbox, not a user.
+// Proves inbox control for any valid email (member or external); the recipient
+// never becomes a user, is never logged in, and gets no session.
+$tokens->issueGuestOtp($email, 'my-plugin');        // void — never reveals if sent
+$proved = $tokens->consumeGuestOtp($email, $code, 'my-plugin'); // bool
+
 // Registration — a 32-byte secret for an address with no account yet.
 // Mints no user row; the email lives in the token payload until verify time.
 $tokens->issueRegistration($email, $returnUrl);   // bool — unknown address only
@@ -66,6 +72,16 @@ unknown address to `issueRegistration()`) stay indistinguishable by timing.
 `consumeRegistration()` proves only mailbox possession and returns the burned
 token — the consuming plugin owns the account decision (create, activate, log in)
 from the payload's email.
+
+The guest OTP is the user-less sibling of `issueOtp()`: it issues to any
+syntactically valid email whether or not it maps to a Craft user, and
+`consumeGuestOtp()` returns a plain bool for whether the code proved control of
+the mailbox. Nothing is logged in and no session is created — a guest
+verification is not an authentication, so it emits no `AuthEvent`, and the raw
+email is never stored (the token carries only the SHA-256 of the lowercased
+address). Attribution is the consuming plugin's audit story. Its `origin` is a
+required argument (not an option), since a guest code only makes sense scoped to
+the consumer that issued it.
 
 Tunable as service properties (no settings model — set on the component, e.g.
 via `config/app.php`): `tokenTtl` (default 900s), `otpDigits` (6),

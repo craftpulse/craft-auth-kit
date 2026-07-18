@@ -1,5 +1,23 @@
 # Release Notes for Auth Kit
 
+## 1.6.0 - 2026-07-18
+
+### Added
+- An email-bound guest OTP primitive, so a consuming plugin can prove that a
+  visitor controls an arbitrary mailbox without ever creating a user, a login,
+  or a session. `Tokens::issueGuestOtp($email, $origin, $options)` issues a
+  short-lived code to any syntactically valid email (member or external, no
+  account required) and emails it through the new editable `auth_kit_guest_otp`
+  system message; `Tokens::consumeGuestOtp($email, $code, $origin)` returns a
+  bool for whether the code proved control of the mailbox. The code is
+  single-use, attempt-capped, and per-email+origin throttled, mirroring the
+  user-bound OTP; every consume failure is timing-uniform. A guest verification
+  is deliberately not an authentication: it emits no `AuthEvent`, and the raw
+  email is never stored (the token carries only the sha256 of the lowercased
+  address in a new `subject` column, added by the
+  `m260718_000001_AddTokenSubject` migration). Attribution is the consuming
+  plugin's audit story.
+
 ## 1.5.0 - 2026-07-17
 
 ### Added
