@@ -20,7 +20,7 @@
         "email": "support@craft-pulse.com",
         "issues": "https://github.com/craftpulse/craft-auth-kit/issues",
         "source": "https://github.com/craftpulse/craft-auth-kit",
-        "docs": "https://github.com/craftpulse/craft-auth-kit/blob/main/README.md"
+        "docs": "https://github.com/craftpulse/craft-auth-kit/blob/v5/README.md"
     },
     "authors": [
         {
@@ -51,7 +51,7 @@
         "handle": "auth-kit",
         "name": "Auth Kit",
         "class": "craftpulse\\authkit\\AuthKit",
-        "documentationUrl": "https://github.com/craftpulse/craft-auth-kit/blob/main/README.md",
+        "documentationUrl": "https://github.com/craftpulse/craft-auth-kit/blob/v5/README.md",
         "craftcms-claude-skills": "1.6.2"
     },
     "scripts": {
