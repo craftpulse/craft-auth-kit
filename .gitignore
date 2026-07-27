@@ -11,3 +11,6 @@
 /PLAN.md
 /BUILD.md
 /REVIEW-*.md
+
+# Local, gitignored review checklists - never committed
+/smoke-testing/
