@@ -2,6 +2,9 @@
 /composer.lock
 /tmp
 /node_modules
+# Craft runtime artifacts from tooling that boots Craft with the plugin dir as base path
+/config
+/storage
 .phpunit.cache
 .phpunit.result.cache
 .DS_Store

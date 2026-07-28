@@ -24,5 +24,33 @@
     <php>
         <ini name="error_reporting" value="-1"/>
         <ini name="display_errors" value="stderr"/>
+
+        <!--
+            DB isolation. DDEV exports CRAFT_DB_DATABASE=db (the playground's
+            live schema) into the container shell, and craft-pest-core's
+            InstallsCraft plugin boots Craft from a fresh vendor/bin/pest
+            process before PHPUnit itself ever applies these env entries.
+            InstallsCraft works around that ordering problem in
+            loadPhpunitXmlEnvironmentVariables(), which reads getcwd() slash
+            phpunit.xml or phpunit.xml.dist directly and pins $_SERVER, $_ENV,
+            and putenv() before Craft boots, but only when getcwd() is this
+            file's own directory. Run the suite from Auth Kit's own root
+            (vendor/bin/pest, or composer test), never via the shared
+            playground's console pest command with a configuration flag
+            pointing at this file, which leaves getcwd() at the playground
+            root and silently defeats this override so Craft boots against
+            the live db instead.
+
+            Only CRAFT_DB_DATABASE and CRAFT_DB_TABLE_PREFIX are forced here:
+            those are the only two values DDEV's ambient environment gets
+            wrong for a suite that needs its own schema (DDEV already exports
+            the correct driver/server/port/user/password for db_test, which
+            lives on the same MySQL instance as the playground's live db).
+            Deliberately NOT forcing driver/server/port/user/password keeps
+            this file portable to CI, which provisions its own MySQL service
+            on its own host/credentials via ordinary (non-forced) job env.
+        -->
+        <env name="CRAFT_DB_DATABASE" value="db_test" force="true"/>
+        <env name="CRAFT_DB_TABLE_PREFIX" value="" force="true"/>
     </php>
 </phpunit>
