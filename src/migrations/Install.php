@@ -12,6 +12,7 @@ namespace craftpulse\authkit\migrations;
 
 use craft\db\Migration;
 use craft\db\Table as CraftTable;
+use craft\helpers\Db;
 use craftpulse\authkit\db\Table;
 
 /**
@@ -64,27 +65,73 @@ class Install extends Migration
      * outstanding tokens. `userId` is nullable: a registration token has no user
      * yet, and the foreign key simply skips the reference check for that null.
      *
+     * Guarded by [[_addForeignKeyIfMissing()]] for the same reason
+     * [[_createIndexes()]] guards every `createIndex()` call: this migration's
+     * `safeUp()` can run directly against a database that already carries
+     * `authkit_tokens` and its foreign key (see that method's docblock), and
+     * `addForeignKey()` has no name-collision protection of its own to fall
+     * back on.
+     *
      * @author Michael Thomas
      * @since 1.0.0
      */
     private function _addForeignKeys(): void
     {
-        $this->addForeignKey(null, Table::TOKENS, ['userId'], CraftTable::USERS, ['id'], 'CASCADE', null);
+        $this->_addForeignKeyIfMissing(Table::TOKENS, ['userId'], CraftTable::USERS, ['id'], 'CASCADE');
+    }
+
+    /**
+     * Adds a foreign key only when no constraint already covers the same
+     * table and columns.
+     *
+     * @param string $table the table the constraint is added to
+     * @param array<int, string> $columns the local columns
+     * @param string $refTable the referenced table
+     * @param array<int, string> $refColumns the referenced columns
+     * @param string $delete the `ON DELETE` behavior
+     *
+     * @author Michael Thomas
+     * @since 1.0.0
+     */
+    private function _addForeignKeyIfMissing(string $table, array $columns, string $refTable, array $refColumns, string $delete): void
+    {
+        if (Db::findForeignKey($table, $columns, $this->db) !== null) {
+            return;
+        }
+
+        $this->addForeignKey(null, $table, $columns, $refTable, $refColumns, $delete, null);
     }
 
     /**
      * Creates the indexes backing Auth Kit's query patterns and uniqueness
      * guarantees.
      *
+     * Every call goes through [[craft\db\Migration::createIndexIfMissing()]]
+     * rather than a bare `createIndex()`: this migration runs its full
+     * `safeUp()` (indexes included) every time a standalone Craft install
+     * — like this plugin's own test harness — discovers Auth Kit isn't yet
+     * registered as installed and falls back to invoking the migration
+     * directly (see `tests/Bootstrap.php`), even when `authkit_tokens` (and
+     * its indexes) already exists from a prior run against the same
+     * database. `createIndex()` always names the index randomly and MySQL
+     * happily allows unlimited functionally-identical indexes under
+     * different names, so a bare call here re-ran on every invocation
+     * accumulated duplicate indexes without ever erroring, until the table
+     * crossed MySQL's 64-key-per-table ceiling and every subsequent install,
+     * and therefore every test, failed outright. `createIndexIfMissing()`
+     * checks for an existing index over the same columns first, so
+     * re-running this migration against an already-indexed table is a true
+     * no-op.
+     *
      * @author Michael Thomas
      * @since 1.0.0
      */
     private function _createIndexes(): void
     {
-        $this->createIndex(null, Table::TOKENS, ['tokenHash'], true);
-        $this->createIndex(null, Table::TOKENS, ['userId']);
-        $this->createIndex(null, Table::TOKENS, ['subject']);
-        $this->createIndex(null, Table::TOKENS, ['expiryDate']);
+        $this->createIndexIfMissing(Table::TOKENS, ['tokenHash'], true);
+        $this->createIndexIfMissing(Table::TOKENS, ['userId']);
+        $this->createIndexIfMissing(Table::TOKENS, ['subject']);
+        $this->createIndexIfMissing(Table::TOKENS, ['expiryDate']);
     }
 
     /**
