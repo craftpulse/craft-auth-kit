@@ -226,6 +226,57 @@ The `AuthEvent` shape is frozen at 1.2.0 — treat any change to its properties 
 constructor as a major version bump. New event-name constants, by contrast, are
 additive and ship in minors.
 
+### Audit Kit bridge — `Audit::EVENT_AFTER_RECORD`
+
+A second, independent seam on the same `record()` call, added in 1.5.0. Where
+the sink registry above is Auth Kit's own cooperation contract (a provider
+registers a `AuditSinkInterface` directly on Auth Kit's `Audit` component),
+`EVENT_AFTER_RECORD` lets a downstream observer relay the event elsewhere
+without ever registering as a sink at all. It exists chiefly so
+[Audit Kit](https://github.com/craftpulse/craft-audit-kit)'s bridge can relay
+every recorded `AuthEvent` onto its own neutral audit bus.
+
+`record()` fires it once, after the sink fan-out has run to completion:
+
+```php
+use craftpulse\authkit\events\AuditRecordEvent;
+use craftpulse\authkit\services\Audit;
+use yii\base\Event;
+
+Event::on(
+    Audit::class,
+    Audit::EVENT_AFTER_RECORD,
+    function(AuditRecordEvent $event) {
+        // $event->event is the same AuthEvent record() was called with.
+    }
+);
+```
+
+Three things to know about this seam:
+
+1. **It is independent of the sink registry.** The sink loop and the
+   `EVENT_AFTER_RECORD` trigger are two separate, unconditional statements in
+   `record()` with no shared guard. Muting the sinks (`setSinks([])`) does
+   **not** mute this event, and attaching a listener here does not add a sink.
+   Neither surface supersedes the other, and neither is deprecated.
+2. **It fires unconditionally, gated only by whether a listener is attached.**
+   With no listener it is a cheap no-op, exactly like an empty sink registry.
+3. **It carries the same frozen `AuthEvent` on a small, read-only wrapper**
+   (`AuditRecordEvent::$event`). It never lets a listener mutate the fan-out
+   that already happened.
+
+A provider plugin can use either seam, or both, for entirely different
+downstream stores. Password Policy, for example, registers a sink (surface
+one) to land events on its own hash-chained audit log, while Audit Kit's
+bridge listens on `EVENT_AFTER_RECORD` (surface two) to feed its own bus. Both
+run on every `record()` call, independently of each other.
+
+**Testing note:** a suite that stubs out audit recording must neutralize
+*both* surfaces. Clearing the sink registry (`Audit::setSinks([])`) has no
+effect on an `EVENT_AFTER_RECORD` listener already attached elsewhere (for
+example, by a co-installed Audit Kit); detach that listener too, or the test
+will still relay a real event onto Audit Kit's bus.
+
 ### Front end
 
 A `craft.authKit` Twig variable exposes `hasPasskeys`, `passkeys`, and
@@ -243,6 +294,7 @@ consumers override them.
 | `tokens` | `EVENT_AFTER_CONSUME_TOKEN` | after consume, user resolved |
 | `passwords` | `EVENT_REGISTER_PASSWORD_VALIDATORS` | to register password validators |
 | `audit` | `EVENT_REGISTER_AUDIT_SINKS` | to register audit sinks |
+| `audit` | `EVENT_AFTER_RECORD` | after every `record()` call, independently of the sink registry (the Audit Kit bridge point) |
 
 ## Consumers
 
