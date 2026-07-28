@@ -1,5 +1,25 @@
 # Release Notes for Auth Kit
 
+## 1.6.1 - 2026-07-28
+
+### Changed
+- Documented `Audit::EVENT_AFTER_RECORD` (shipped in 1.5.0) in the README: a
+  new "Audit Kit bridge" subsection covers what it is, when it fires, that it
+  runs independently of the sink registry (muting sinks does not mute it),
+  the `AuditRecordEvent` payload, and a testing note that neutralizing audit
+  recording must clear both surfaces.
+
+### Fixed
+- The `Install` migration is now idempotent. `_createIndexes()` and
+  `_addForeignKeys()` ran unconditionally on every `safeUp()`, unlike
+  `_createTables()`'s own `tableExists()` guard, so any context that
+  re-invokes the migration directly against a database that already has
+  `authkit_tokens` (a standalone test harness whose plugin-install detection
+  lags reality, for instance) kept adding duplicate, functionally identical
+  indexes and foreign keys with no error. `createIndexIfMissing()` and a new
+  `_addForeignKeyIfMissing()` guard make every call a true no-op against an
+  already-provisioned table.
+
 ## 1.6.0 - 2026-07-18
 
 ### Added
