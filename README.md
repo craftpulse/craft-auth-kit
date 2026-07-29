@@ -1,12 +1,12 @@
 # Auth Kit
 
-Foundational authentication primitives for Craft CMS 5 — passwordless tokens
+Foundational authentication primitives for Craft CMS 5: passwordless tokens
 (magic links + email OTP), passkey wrappers, a recent-auth gate, a
 password-validator contract, and an audit-event contract. The shared base for
 the CraftPulse security ecosystem.
 
 Auth Kit is **primitives + contracts**. It ships no routes, controllers, or
-UX — consuming plugins ([Warden](https://github.com/craftpulse/craft-warden),
+UX. Consuming plugins ([Warden](https://github.com/craftpulse/craft-warden),
 Warp, a Password Policy adapter) own those and call into Auth Kit's services.
 It is a free, foundational plugin rather than a bare library because the token
 store needs a table and migrations: a single installed plugin owns the
@@ -25,12 +25,12 @@ composer require craftpulse/craft-auth-kit
 ./craft plugin/install auth-kit
 ```
 
-Most of the time you won't install Auth Kit directly — it is pulled in as a
+Most of the time you won't install Auth Kit directly; it is pulled in as a
 Composer dependency of the plugin that uses it.
 
 ## What it provides
 
-### Token core — `AuthKit::$plugin->tokens`
+### Token core: `AuthKit::$plugin->tokens`
 
 Issue and consume hashed, single-use, TTL'd passwordless credentials. The raw
 secret is never persisted (only its SHA-256 hash); consumption burns the token
@@ -41,26 +41,26 @@ use craftpulse\authkit\AuthKit;
 
 $tokens = AuthKit::$plugin->tokens;
 
-// Magic links — a 32-byte secret emailed as a verify URL, no attempt cap.
-$tokens->issueMagicLink($email, $returnUrl);     // bool — respond identically regardless
+// Magic links: a 32-byte secret emailed as a verify URL, no attempt cap.
+$tokens->issueMagicLink($email, $returnUrl);     // bool, respond identically regardless
 $user = $tokens->consumeMagicLink($rawToken);    // ?User
 
-// Email OTP — short numeric code, attempt-capped, superseded on re-issue.
+// Email OTP: short numeric code, attempt-capped, superseded on re-issue.
 $tokens->issueOtp($email);                        // bool
 $user = $tokens->consumeOtp($email, $code);       // ?User
 
-// Guest OTP — short numeric code bound to an ARBITRARY mailbox, not a user.
+// Guest OTP: short numeric code bound to an ARBITRARY mailbox, not a user.
 // Proves inbox control for any valid email (member or external); the recipient
 // never becomes a user, is never logged in, and gets no session.
-$tokens->issueGuestOtp($email, 'my-plugin');        // void — never reveals if sent
+$tokens->issueGuestOtp($email, 'my-plugin');        // void, never reveals if sent
 $proved = $tokens->consumeGuestOtp($email, $code, 'my-plugin'); // bool
 
-// Registration — a 32-byte secret for an address with no account yet.
+// Registration: a 32-byte secret for an address with no account yet.
 // Mints no user row; the email lives in the token payload until verify time.
-$tokens->issueRegistration($email, $returnUrl);   // bool — unknown address only
-$token = $tokens->consumeRegistration($rawToken); // ?Token — payload carries the email
+$tokens->issueRegistration($email, $returnUrl);   // bool, unknown address only
+$token = $tokens->consumeRegistration($rawToken); // ?Token, payload carries the email
 
-// Maintenance — prune expired rows (safe on a schedule).
+// Maintenance: prune expired rows (safe on a schedule).
 $tokens->purgeExpiredTokens();                    // int rows deleted
 ```
 
@@ -70,34 +70,34 @@ any address that already maps to a user of any status. The two branches a unifie
 sign-in/sign-up endpoint dispatches between (existing address to `issueMagicLink()`,
 unknown address to `issueRegistration()`) stay indistinguishable by timing.
 `consumeRegistration()` proves only mailbox possession and returns the burned
-token — the consuming plugin owns the account decision (create, activate, log in)
+token; the consuming plugin owns the account decision (create, activate, log in)
 from the payload's email.
 
 The guest OTP is the user-less sibling of `issueOtp()`: it issues to any
 syntactically valid email whether or not it maps to a Craft user, and
 `consumeGuestOtp()` returns a plain bool for whether the code proved control of
-the mailbox. Nothing is logged in and no session is created — a guest
+the mailbox. Nothing is logged in and no session is created, because a guest
 verification is not an authentication, so it emits no `AuthEvent`, and the raw
 email is never stored (the token carries only the SHA-256 of the lowercased
 address). Attribution is the consuming plugin's audit story. Its `origin` is a
 required argument (not an option), since a guest code only makes sense scoped to
 the consumer that issued it.
 
-Tunable as service properties (no settings model — set on the component, e.g.
+Tunable as service properties (no settings model, so set them on the component, e.g.
 via `config/app.php`): `tokenTtl` (default 900s), `otpDigits` (6),
 `otpMaxAttempts` (5), `perEmailLimit` (5), `perEmailWindow` (300s),
-`magicLinkRoute`, and `registrationRoute` — the site routes your plugin
+`magicLinkRoute`, and `registrationRoute`, the site routes your plugin
 registers for the verify URLs (Auth Kit imposes no URLs).
 
 > [!IMPORTANT]
 > `issueMagicLink()` / `issueOtp()` / `issueRegistration()` return whether a
 > credential was actually sent, but any public-facing caller **must respond
-> identically** whether or not the address exists — that is what keeps the
+> identically** whether or not the address exists. That is what keeps the
 > endpoint enumeration-safe. Per-IP rate limiting belongs on your controller
 > (core's `RateLimiter`); the per-address throttle here covers every channel
 > including programmatic use.
 
-### Passkeys & recent-auth — `AuthKit::$plugin->passkeys`
+### Passkeys & recent-auth: `AuthKit::$plugin->passkeys`
 
 Thin wrappers over core's WebAuthn machinery for front-end users, plus the
 recent-auth gate (the passwordless replacement for elevated sessions; stamped
@@ -112,7 +112,7 @@ $passkeys->getPasskeys($user);                         // array
 $passkeys->hasPasskeys($user);                         // bool
 $passkeys->deletePasskey($user, $uid);
 
-$passkeys->hasRecentAuth($within);                     // bool — gate sensitive actions
+$passkeys->hasRecentAuth($within);                     // bool, gate sensitive actions
 $passkeys->stampRecentAuth();
 ```
 
@@ -125,10 +125,10 @@ $passkeys->stampRecentAuth();
 > target: always pass the authenticated user's own element, never a user
 > resolved from request input.
 
-### Password validation contract — `AuthKit::$plugin->passwords`
+### Password validation contract: `AuthKit::$plugin->passwords`
 
 The neutral cooperation seam for password strength and breach checks. Plugins
-cooperate through this contract and a registry — **never** by sniffing each
+cooperate through this contract and a registry, **never** by sniffing each
 other with `isPluginInstalled()`.
 
 ```php
@@ -157,15 +157,15 @@ Event::on(
 ```
 
 If no validator is registered, `validate()` is a graceful no-op (valid). The
-interface is deliberately tiny and stable — treat any change to it as a major
+interface is deliberately tiny and stable, so treat any change to it as a major
 version bump.
 
-### Audit events — `AuthKit::$plugin->audit`
+### Audit events: `AuthKit::$plugin->audit`
 
 The neutral cooperation seam for authentication audit logging. Emitters describe
 an auth fact with the `AuthEvent` value object and hand it to `record()`;
 provider plugins register sinks that persist or forward it. Plugins cooperate
-through this contract and a registry — **never** by sniffing each other with
+through this contract and a registry, **never** by sniffing each other with
 `isPluginInstalled()`.
 
 An emitter (Warden, Warp) records an event:
@@ -212,21 +212,21 @@ cheap no-op.
 
 The contract has three rules:
 
-1. **`details` is scalar-only and carries no PII** — no emails, raw IPs, or raw
+1. **`details` is scalar-only and carries no PII.** No emails, raw IPs, or raw
    user agents. Only `bool`, `int`, `float`, and `string` values are accepted; a
    non-scalar value throws at construction. (`outcome` is likewise validated: it
    must be `OUTCOME_SUCCESS` or `OUTCOME_FAILURE`.)
 2. **Sinks ignore unknown event names silently.** Auth Kit adds names in minor
    releases, so a sink may receive a name newer than the vocabulary it was
-   written against — it must not error on one.
+   written against, and it must not error on one.
 3. **Emitters never edition-gate emission.** Emit unconditionally; the sink side
    decides what to keep.
 
-The `AuthEvent` shape is frozen at 1.2.0 — treat any change to its properties or
+The `AuthEvent` shape is frozen at 1.2.0, so treat any change to its properties or
 constructor as a major version bump. New event-name constants, by contrast, are
 additive and ship in minors.
 
-### Audit Kit bridge — `Audit::EVENT_AFTER_RECORD`
+### Audit Kit bridge: `Audit::EVENT_AFTER_RECORD`
 
 A second, independent seam on the same `record()` call, added in 1.5.0. Where
 the sink registry above is Auth Kit's own cooperation contract (a provider
@@ -290,7 +290,7 @@ consumers override them.
 | Service | Event | Fired |
 |---|---|---|
 | `tokens` | `EVENT_AFTER_ISSUE_TOKEN` | after a token is issued |
-| `tokens` | `EVENT_BEFORE_CONSUME_TOKEN` | before consume (cancelable — refuses login, leaves the token unburned) |
+| `tokens` | `EVENT_BEFORE_CONSUME_TOKEN` | before consume (cancelable: refuses login, leaves the token unburned) |
 | `tokens` | `EVENT_AFTER_CONSUME_TOKEN` | after consume, user resolved |
 | `passwords` | `EVENT_REGISTER_PASSWORD_VALIDATORS` | to register password validators |
 | `audit` | `EVENT_REGISTER_AUDIT_SINKS` | to register audit sinks |
@@ -306,4 +306,4 @@ consumers override them.
 
 ## License
 
-[MIT](LICENSE) — © CraftPulse
+[MIT](LICENSE), © CraftPulse
