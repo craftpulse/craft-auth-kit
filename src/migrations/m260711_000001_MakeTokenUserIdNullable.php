@@ -12,6 +12,7 @@ namespace craftpulse\authkit\migrations;
 
 use craft\db\Migration;
 use craft\db\Table as CraftTable;
+use craft\helpers\Db;
 use craftpulse\authkit\db\Table;
 
 /**
@@ -41,44 +42,111 @@ class m260711_000001_MakeTokenUserIdNullable extends Migration
 
     /**
      * @inheritdoc
+     *
+     * Both steps are guarded so a re-invocation is a true no-op. The alter only
+     * runs while the column is still `NOT NULL`, and the foreign key is only
+     * re-added when the table does not already carry one over `userId`.
+     *
+     * This originally ran unconditionally: drop the constraint, rewrite the
+     * column, re-add the constraint. That stayed at one foreign key on a replay
+     * only because the drop immediately preceded the add — incidental safety,
+     * not stated safety. `addForeignKey(null, ...)` names the constraint
+     * randomly and neither MySQL nor Postgres rejects a second, functionally
+     * identical constraint under a different name, so the moment that ordering
+     * changed (or the drop stopped matching, since `dropForeignKeyIfExists()`
+     * removes only the first constraint it finds over the columns) the re-add
+     * would start piling up duplicates with no error, each one consuming a key
+     * slot toward MySQL's 64-key-per-table ceiling. It also meant every replay
+     * needlessly dropped a live referential-integrity constraint and rewrote
+     * the whole column to reach a state it was already in.
+     *
+     * Tracking whether the constraint was dropped in this run, rather than
+     * re-reading the schema after the drop, keeps the decision independent of
+     * Yii's table schema cache.
      */
     public function safeUp(): bool
     {
-        // The foreign key must be dropped before the column it references can be
-        // altered; it is re-added once the column is nullable.
-        $this->dropForeignKeyIfExists(Table::TOKENS, ['userId']);
+        $hasForeignKey = Db::findForeignKey(Table::TOKENS, ['userId'], $this->db) !== null;
 
-        if ($this->db->getIsMysql()) {
-            $this->alterColumn(Table::TOKENS, 'userId', $this->integer());
-        } else {
-            // Postgres: altering a column from a ColumnSchemaBuilder does not
-            // reliably emit the NOT NULL change, so drop the constraint directly.
-            $this->execute(sprintf('ALTER TABLE %s ALTER COLUMN [[userId]] DROP NOT NULL', Table::TOKENS));
+        if (!$this->_userIdAllowsNull()) {
+            // The foreign key must be dropped before the column it references
+            // can be altered; it is re-added below once the column is nullable.
+            if ($hasForeignKey) {
+                $this->dropForeignKeyIfExists(Table::TOKENS, ['userId']);
+                $hasForeignKey = false;
+            }
+
+            if ($this->db->getIsMysql()) {
+                $this->alterColumn(Table::TOKENS, 'userId', $this->integer());
+            } else {
+                // Postgres: altering a column from a ColumnSchemaBuilder does not
+                // reliably emit the NOT NULL change, so drop the constraint directly.
+                $this->execute(sprintf('ALTER TABLE %s ALTER COLUMN [[userId]] DROP NOT NULL', Table::TOKENS));
+            }
         }
 
-        $this->addForeignKey(null, Table::TOKENS, ['userId'], CraftTable::USERS, ['id'], 'CASCADE', null);
+        if (!$hasForeignKey) {
+            $this->addForeignKey(null, Table::TOKENS, ['userId'], CraftTable::USERS, ['id'], 'CASCADE', null);
+        }
 
         return true;
     }
 
     /**
      * @inheritdoc
+     *
+     * Guarded the same way as [[safeUp()]], and for the same reason: repeating
+     * the down step must not pile up duplicate foreign keys either.
      */
     public function safeDown(): bool
     {
-        // Re-tightening fails if any registration token (null userId) still
-        // exists; that is expected — the column cannot go back to NOT NULL while
-        // user-less credentials are outstanding.
-        $this->dropForeignKeyIfExists(Table::TOKENS, ['userId']);
+        $hasForeignKey = Db::findForeignKey(Table::TOKENS, ['userId'], $this->db) !== null;
 
-        if ($this->db->getIsMysql()) {
-            $this->alterColumn(Table::TOKENS, 'userId', $this->integer()->notNull());
-        } else {
-            $this->execute(sprintf('ALTER TABLE %s ALTER COLUMN [[userId]] SET NOT NULL', Table::TOKENS));
+        if ($this->_userIdAllowsNull()) {
+            // Re-tightening fails if any registration token (null userId) still
+            // exists; that is expected — the column cannot go back to NOT NULL while
+            // user-less credentials are outstanding.
+            if ($hasForeignKey) {
+                $this->dropForeignKeyIfExists(Table::TOKENS, ['userId']);
+                $hasForeignKey = false;
+            }
+
+            if ($this->db->getIsMysql()) {
+                $this->alterColumn(Table::TOKENS, 'userId', $this->integer()->notNull());
+            } else {
+                $this->execute(sprintf('ALTER TABLE %s ALTER COLUMN [[userId]] SET NOT NULL', Table::TOKENS));
+            }
         }
 
-        $this->addForeignKey(null, Table::TOKENS, ['userId'], CraftTable::USERS, ['id'], 'CASCADE', null);
+        if (!$hasForeignKey) {
+            $this->addForeignKey(null, Table::TOKENS, ['userId'], CraftTable::USERS, ['id'], 'CASCADE', null);
+        }
 
         return true;
+    }
+
+    // Private Methods
+    // =========================================================================
+
+    /**
+     * Returns whether `authkit_tokens.userId` already accepts null.
+     *
+     * The schema is read with a forced refresh so the answer reflects the
+     * database rather than whatever Yii cached earlier in the request; a stale
+     * `NOT NULL` reading would re-run the alter (and the drop/re-add of the
+     * foreign key around it) on a column that no longer needs it.
+     *
+     * A missing column or table reads as "already nullable" so the alter is
+     * skipped rather than attempted against a schema this migration cannot
+     * repair.
+     *
+     * @author Michael Thomas
+     * @since 1.1.0
+     */
+    private function _userIdAllowsNull(): bool
+    {
+        $column = $this->db->getTableSchema(Table::TOKENS, true)?->getColumn('userId');
+
+        return $column === null || $column->allowNull;
     }
 }

@@ -36,22 +36,53 @@ class m260718_000001_AddTokenSubject extends Migration
 
     /**
      * @inheritdoc
+     *
+     * The column and the index are checked independently, and the index goes
+     * through [[craft\db\Migration::createIndexIfMissing()]] rather than a bare
+     * `createIndex()`. Both halves matter, for opposite reasons.
+     *
+     * Sharing the column's `columnExists()` guard (as this originally did) made
+     * the index unreachable once the column existed, so a run that added the
+     * column and then died before indexing it skipped the index forever on
+     * every retry — a silently missing index behind the guest OTP subject
+     * lookup, with no error to point at it.
+     *
+     * Hoisting the call out of that guard makes it reachable on every
+     * invocation, which is exactly where a bare `createIndex()` becomes
+     * dangerous: it names the index randomly and neither MySQL nor Postgres
+     * rejects a second, functionally identical index under a different name, so
+     * a replay (a lost migration history row, a manual `migrate/up`, a harness
+     * that provisions the schema directly) would pile up duplicates with no
+     * error until the table crossed MySQL's 64-key-per-table ceiling and every
+     * subsequent install failed outright. `createIndexIfMissing()` is what
+     * makes reachability safe.
+     *
+     * Together, each step is a true no-op when its own change is already in
+     * place, and self-healing when only one of the two is.
      */
     public function safeUp(): bool
     {
         if (!$this->db->columnExists(Table::TOKENS, 'subject')) {
             $this->addColumn(Table::TOKENS, 'subject', $this->char(64)->after('origin'));
-            $this->createIndex(null, Table::TOKENS, ['subject']);
         }
+
+        $this->createIndexIfMissing(Table::TOKENS, ['subject']);
 
         return true;
     }
 
     /**
      * @inheritdoc
+     *
+     * The index is dropped explicitly rather than left to the column drop's
+     * cascade, so the down step names what it removes instead of relying on
+     * per-driver behavior, and so an interrupted `safeUp()` that indexed
+     * without adding the column still gets cleaned up.
      */
     public function safeDown(): bool
     {
+        $this->dropIndexIfExists(Table::TOKENS, ['subject']);
+
         if ($this->db->columnExists(Table::TOKENS, 'subject')) {
             $this->dropColumn(Table::TOKENS, 'subject');
         }

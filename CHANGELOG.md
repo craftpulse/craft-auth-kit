@@ -1,5 +1,71 @@
 # Release Notes for Auth Kit
 
+## 1.6.2 - 2026-07-29
+
+### Fixed
+- `m260718_000001_AddTokenSubject` no longer skips the `subject` index when the
+  column already exists. The index creation sat inside the column's own
+  `columnExists()` guard, so a run that added the column and then died before
+  indexing it could never recover: every retry saw the column, skipped the
+  whole block, and left the guest OTP subject lookup permanently unindexed with
+  no error to point at it. The column and the index are now checked
+  independently, so each step is a no-op when its own change is in place and
+  self-healing when only one of the two is.
+- The `subject` index now goes through `createIndexIfMissing()` instead of a
+  bare `createIndex(null, ...)`. That matters precisely because the call is no
+  longer shielded by the column guard: a bare `createIndex()` names the index
+  randomly, and neither MySQL nor Postgres rejects a second, functionally
+  identical index under a different name, so a reachable unguarded call would
+  pile up duplicates with no error until the table crossed MySQL's
+  64-key-per-table ceiling and every subsequent install failed outright. This
+  is the failure 1.6.1 fixed in `Install`; the guard is now on every index
+  Auth Kit creates, in every migration.
+- `m260711_000001_MakeTokenUserIdNullable` no longer rewrites the column and
+  drops and re-adds the `userId` foreign key on a replay. The alter now runs
+  only while the column is still `NOT NULL`, and the constraint is re-added
+  only when `Db::findForeignKey()` finds none over `userId`, so replaying the
+  migration is a true no-op instead of a needless column rebuild with a window
+  where referential integrity is not enforced. The previous unconditional
+  drop-then-add held at one constraint only because the drop immediately
+  preceded the add, which was incidental rather than stated: a bare
+  `addForeignKey(null, ...)` names the constraint randomly and duplicates are
+  accepted, and `dropForeignKeyIfExists()` removes only the first constraint it
+  finds over the columns. Both up and down steps are guarded.
+- `m260718_000001_AddTokenSubject`'s `safeDown()` now drops the `subject` index
+  explicitly instead of relying on the column drop's per-driver cascade, so the
+  down step names what it removes and also cleans up after an interrupted
+  `safeUp()` that indexed without adding the column.
+
+### Notes
+- A new `tests/Unit/Migrations/IdempotencyTest.php` replays all four migrations
+  against an already-migrated schema and asserts the index and foreign-key
+  inventory is unchanged, asserts there is exactly one index per indexed column
+  set, and reconstructs the partial-application state (column present, index
+  missing) to prove the recovery path. It is the regression guard that would
+  have caught the reintroduction; the previous `InstallTest` covered only
+  `Install`.
+- Exposure for the two migrations above was narrower than for the `Install`
+  case fixed in 1.6.1, and neither could accumulate duplicate keys on its own.
+  Craft's `installPlugin()` runs only the `Install` migration and then records
+  the numbered migrations as applied without executing them, so the plugin's
+  own test harness fallback (which reaches for `installPlugin()` whenever Auth
+  Kit is not registered as installed, even against a database whose tables
+  already exist) replays `Install` and only `Install`, never the numbered
+  migrations. The `AddTokenSubject` index call was in turn unreachable once its
+  column existed, and the `MakeTokenUserIdNullable` foreign key was re-added
+  only immediately after being dropped. Forcing all three numbered migrations
+  to execute three times over an already-migrated schema on the released 1.6.1
+  code leaves the index and foreign-key count unchanged, so the 64-key ceiling
+  incidents observed in the wild trace to `Install`'s pre-1.6.1 bare calls, not
+  to these. What this release removes is the remaining unguarded calls, whose
+  safety rested on surrounding code rather than on the call itself.
+- No `safeDown()` changed its observable outcome. `migrate/down` still reverts
+  to the pre-1.6.0 schema (`origin` and `subject` dropped, `userId` back to
+  `NOT NULL`, foreign key intact) and `migrate/up` still restores it exactly,
+  with no change in index or foreign-key count either way. This is a patch
+  release: no schema change, no `schemaVersion` bump, and nothing for an
+  existing install to migrate.
+
 ## 1.6.1 - 2026-07-28
 
 ### Changed
