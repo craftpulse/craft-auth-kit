@@ -66,6 +66,18 @@ class AuthKit extends Plugin
     /**
      * @var string The plugin's schema version.
      *
+     * This is an independent, monotonic schema counter, NOT the plugin's release
+     * version, and the two deliberately do not track each other. Craft looks for
+     * pending plugin migrations only when this value is ahead of the one recorded
+     * in the `plugins` table ([[craft\services\Plugins::isPluginUpdatePending()]]
+     * compares them with `version_compare($plugin->schemaVersion, $stored, '>')`),
+     * so it must be bumped whenever a migration is added, and must NOT be bumped
+     * for a release that adds none. Every migration so far has carried its bump:
+     * 1.0.0 at install, 1.1.0 with `m260711_000001_MakeTokenUserIdNullable`
+     * (released in 1.2.0), 1.2.0 with `m260716_000001_AddTokenOrigin` (1.4.0),
+     * and 1.3.0 with `m260718_000001_AddTokenSubject` (1.6.0). Read the migration
+     * classes' `@since` tags as release versions, not as schema versions.
+     *
      * @since 1.0.0
      */
     public string $schemaVersion = '1.3.0';

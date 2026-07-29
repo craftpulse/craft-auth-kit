@@ -1,6 +1,6 @@
 # Release Notes for Auth Kit
 
-## 1.6.2 - 2026-07-29
+## 1.6.2
 
 ### Fixed
 - `m260718_000001_AddTokenSubject` no longer skips the `subject` index when the
@@ -64,7 +64,20 @@
   `NOT NULL`, foreign key intact) and `migrate/up` still restores it exactly,
   with no change in index or foreign-key count either way. This is a patch
   release: no schema change, no `schemaVersion` bump, and nothing for an
-  existing install to migrate.
+  existing install to migrate. Upgrading runs no DDL on any install that is
+  already current.
+- `schemaVersion` was audited across every release tag and is correct at
+  `1.3.0`. It is an independent, monotonic schema counter rather than a mirror
+  of the release version, and each migration did carry its bump: `1.0.0` at
+  install, `1.1.0` with `m260711_000001_MakeTokenUserIdNullable` (shipped in
+  1.2.0), `1.2.0` with `m260716_000001_AddTokenOrigin` (1.4.0), and `1.3.0`
+  with `m260718_000001_AddTokenSubject` (1.6.0). Every upgrade path therefore
+  reports a pending database update and applies what it is missing, verified by
+  upgrading a reconstructed install that stored `1.1.0` and lacked both
+  columns: Craft found both migrations pending and applied them, landing
+  `origin varchar(32)`, `subject char(64)`, and exactly one `subject` index.
+  The property now documents this so the counter is not mistaken for the
+  release version and bumped or skipped by accident.
 
 ## 1.6.1 - 2026-07-28
 
