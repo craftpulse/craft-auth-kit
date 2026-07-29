@@ -1,6 +1,6 @@
 # Release Notes for Auth Kit
 
-## 1.6.2
+## 1.6.2 - 2026-07-29
 
 ### Fixed
 - `m260718_000001_AddTokenSubject` no longer skips the `subject` index when the
