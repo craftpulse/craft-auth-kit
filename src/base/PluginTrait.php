@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Foundational authentication primitives for Craft.
  *
@@ -22,8 +22,10 @@ use craftpulse\authkit\variables\AuthKitVariable;
 use yii\base\Event;
 
 /**
- * PluginTrait owns Auth Kit's event listeners and plugin lifecycle wiring,
- * keeping the main plugin class a thin orchestrator.
+ * PluginTrait owns Auth Kit's event listeners, keeping the main module class a
+ * thin orchestrator. (The name is kept from the plugin era, mirroring the
+ * `verbb/auth` module's identically-named trait, so the conversion left every
+ * reference intact.)
  *
  * Auth Kit imposes no URL rules and ships no controllers — consuming plugins
  * own their own route registration. What it does wire is the recent-auth stamp
@@ -41,7 +43,9 @@ trait PluginTrait
     /**
      * Attaches Auth Kit's event handlers.
      *
-     * Called from `AuthKit::init()` once the application has fully initialized.
+     * Called from `AuthKit::init()` (via `Craft::$app->onInit()`) once the
+     * application has fully initialized — which, for a module registered from
+     * a consumer plugin's `init()`, is immediately after plugin loading.
      *
      * @author Michael Thomas
      * @since 1.0.0

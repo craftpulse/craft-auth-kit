@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Foundational authentication primitives for Craft.
  *
@@ -14,11 +14,12 @@ namespace craftpulse\authkit\services;
  * ServicesTrait owns Auth Kit's service component registration and typed
  * accessors.
  *
- * Components are declared in [[config()]], which Craft merges into the plugin's
- * Yii config during construction. Each service gets a typed `getX(): X`
- * accessor that narrows Yii's `?object` return for static analysis. The
- * `@property` tags for property-style access live on this trait's docblock —
- * never duplicate them on the main plugin class.
+ * Components are declared in [[config()]], which `AuthKit::getInstance()`
+ * passes to the module constructor (Yii applies the `components` key via
+ * `setComponents()` before `init()` runs). Each service gets a typed
+ * `getX(): X` accessor that narrows Yii's `?object` return for static
+ * analysis. The `@property` tags for property-style access live on this
+ * trait's docblock — never duplicate them on the main module class.
  *
  * @property-read Audit $audit
  * @property-read Passkeys $passkeys
@@ -34,7 +35,7 @@ trait ServicesTrait
     // =========================================================================
 
     /**
-     * Returns the component config Craft merges into the plugin's application config.
+     * Returns the component config the module is constructed with.
      *
      * @return array<string, mixed>
      *
