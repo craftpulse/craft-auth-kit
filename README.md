@@ -8,9 +8,14 @@ the CraftPulse security ecosystem.
 Auth Kit is **primitives + contracts**. It ships no routes, controllers, or
 UX. Consuming plugins ([Warden](https://github.com/craftpulse/craft-warden),
 Warp, a Password Policy adapter) own those and call into Auth Kit's services.
-It is a free, foundational plugin rather than a bare library because the token
-store needs a table and migrations: a single installed plugin owns the
-`authkit_*` schema once, so consumers never collide on it.
+
+Since 1.7.0 Auth Kit is a **library-shipped Yii module**, following the
+`verbb/auth` model: it never appears in Craft's installed-plugins list, has no
+install or enable state of its own, and cannot be disabled. Consuming plugins
+require the package and register the module at runtime. Auth Kit still owns
+the `authkit_*` schema exactly once, through its own migration track
+(`module:auth-kit`), so consumers never collide on it however many of them
+share an install.
 
 ## Requirements
 
@@ -20,13 +25,105 @@ store needs a table and migrations: a single installed plugin owns the
 
 ## Installation
 
+Auth Kit is not installed on its own and there is no `plugin/install` step. A
+consuming plugin requires the package:
+
 ```sh
 composer require craftpulse/craft-auth-kit
-./craft plugin/install auth-kit
 ```
 
-Most of the time you won't install Auth Kit directly; it is pulled in as a
-Composer dependency of the plugin that uses it.
+and wires it up in three places, described next.
+
+## Wiring Auth Kit into a consuming plugin
+
+### 1. Register the module
+
+Call the idempotent `AuthKit::register()` from your plugin's `init()`:
+
+```php
+use craftpulse\authkit\AuthKit;
+
+public function init(): void
+{
+    parent::init();
+
+    AuthKit::register();
+
+    // ...
+}
+```
+
+The first call creates the module, sets it on the application under the
+`auth-kit` module ID, and attaches Auth Kit's event wiring (expired-token
+garbage collection, recent-auth stamping on login, the editable system
+messages, and the `craft.authKit` variable). Every later call returns the
+existing instance, so any number of consumers (Warp and Warden on the same
+install, for example) can each call it safely.
+
+`AuthKit::getInstance()` and the `AuthKit::$plugin` shorthand keep working
+from any context and lazily register the module if no plugin has yet.
+
+### 2. Apply Auth Kit's migrations from your install migration
+
+Auth Kit owns its migrations and runs them through its own migration manager
+on the `module:auth-kit` track. Your plugin's `Install` migration applies them
+with one line:
+
+```php
+public function safeUp(): bool
+{
+    \craftpulse\authkit\AuthKit::getInstance()->getMigrator()->up();
+
+    // ... your own schema ...
+
+    return true;
+}
+```
+
+Applied migrations are recorded on the module track, so a second consumer's
+install finds nothing left to do.
+
+Auth Kit has no plugin schema version for Craft to watch, so a release that
+adds a migration is not picked up on its own. When you bump your Auth Kit
+requirement to a release whose changelog lists a new migration, ship a dated
+migration of your own containing the same one line. This is the `verbb/auth`
+model, and it keeps schema changes on your plugin's own upgrade path rather
+than on an implicit one:
+
+```php
+public function safeUp(): bool
+{
+    \craftpulse\authkit\AuthKit::getInstance()->getMigrator()->up();
+
+    return true;
+}
+```
+
+### 3. Upgrading from the plugin era (Auth Kit 1.6.x and earlier)
+
+Installs that carried Auth Kit as a plugin need a one-time adoption when the
+consumer moves to 1.7.0+. Ship a normal dated migration containing:
+
+```php
+public function safeUp(): bool
+{
+    \craftpulse\authkit\migrations\Adoption::adoptFromPlugin();
+
+    return true;
+}
+```
+
+`Adoption::adoptFromPlugin()` marks the plugin era's already-applied Auth Kit
+migrations as applied on the module track, removes the leftover `auth-kit` row
+from the `plugins` table and the `plugins.auth-kit` project config entry (with
+project config events muted, and without ever touching the `authkit_*`
+tables), then runs the module migrator's `up()` to apply anything still
+pending. Every step is idempotent: the call is safe to re-run, safe when
+several consumers each ship it, and safe on an install that never had the
+plugin, where it simply applies the schema fresh. Ship this migration in the
+same consumer release that bumps the Auth Kit requirement to `^1.7.0`, so the
+stale plugin registration is cleaned up on the very `craft up` that follows
+the composer update.
 
 ## What it provides
 
@@ -83,8 +180,22 @@ address). Attribution is the consuming plugin's audit story. Its `origin` is a
 required argument (not an option), since a guest code only makes sense scoped to
 the consumer that issued it.
 
-Tunable as service properties (no settings model, so set them on the component, e.g.
-via `config/app.php`): `tokenTtl` (default 900s), `otpDigits` (6),
+Tunable as service properties (no settings model, so set them on the component
+via `config/app.php`, declaring the module and only the components you are
+overriding, since Auth Kit fills in the rest):
+
+```php
+'modules' => [
+    'auth-kit' => [
+        'class' => \craftpulse\authkit\AuthKit::class,
+        'components' => [
+            'tokens' => ['tokenTtl' => 600],
+        ],
+    ],
+],
+```
+
+The tunables are `tokenTtl` (default 900s), `otpDigits` (6),
 `otpMaxAttempts` (5), `perEmailLimit` (5), `perEmailWindow` (300s),
 `magicLinkRoute`, and `registrationRoute`, the site routes your plugin
 registers for the verify URLs (Auth Kit imposes no URLs).
@@ -301,6 +412,7 @@ consumers override them.
 | Plugin | Uses Auth Kit for |
 |---|---|
 | **Warden** | Lite passwordless: magic links, passkeys, recent-auth |
+| **Warrant** | pinned to `~1.6.0` until its own module retrofit |
 | **Warp** (planned) | the whole passwordless product surface |
 | **Password Policy** (planned adapter) | *provides* a `PasswordValidatorInterface` adapter |
 

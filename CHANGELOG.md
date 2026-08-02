@@ -1,5 +1,48 @@
 # Release Notes for Auth Kit
 
+## 1.7.0 - Unreleased
+
+### Changed
+- Auth Kit is now a library-shipped Yii module instead of a Craft plugin,
+  following the `verbb/auth` model. The composer package type changed from
+  `craft-plugin` to `library`, so the package no longer appears in Craft's
+  installed-plugins list and can no longer be installed, enabled, or disabled
+  on its own. Consuming plugins (Warp, Warden) register it at runtime instead.
+- `AuthKit` now extends `yii\base\Module`. Consumers call the idempotent
+  `AuthKit::register()` from their plugin's `init()`; the first call creates
+  the module, sets it on the application under the `auth-kit` module ID, and
+  attaches Auth Kit's event wiring (garbage collection, recent-auth stamping,
+  system messages, the `craft.authKit` variable). Later calls, for example
+  when Warp and Warden share an install, return the existing instance.
+  `AuthKit::getInstance()` and `AuthKit::$plugin` keep working everywhere,
+  including inside migrations, and lazily register the module when needed.
+- Auth Kit keeps owning its migrations, now run through its own migration
+  manager on the `module:auth-kit` track. Consumers call
+  `AuthKit::getInstance()->getMigrator()->up()` from their install migration.
+  The base schema gained a dated wrapper, `m260617_000000_Install`, so the
+  module track can discover it; all schema logic still lives in `Install`.
+- Auth Kit no longer carries a plugin `schemaVersion`, because Craft only
+  watches that for installed plugins. A release that adds a migration is
+  applied by the consumer shipping a dated migration with the same
+  `getMigrator()->up()` line, keeping schema changes on the consumer's own
+  upgrade path. This matches the `verbb/auth` model and is documented in the
+  README.
+- The `auth-kit` translation category and the `@craftpulse/authkit` alias are
+  now registered by the module itself, since Craft only does that
+  automatically for installed plugins. Every `Craft::t('auth-kit', ...)` call
+  site keeps working unchanged.
+
+### Added
+- `craftpulse\authkit\migrations\Adoption`, the documented upgrade helper that
+  makes a consumer's plugin-to-module migration a one-liner:
+  `Adoption::adoptFromPlugin()`. It marks the plugin era's already-applied
+  migrations as applied on the module track, removes the `auth-kit` row from
+  the `plugins` table and the `plugins.auth-kit` project config entry with
+  project config events muted, never touches Auth Kit's tables, and finishes
+  with a `migrator->up()` catch-up. Every step is idempotent and the call is
+  safe on installs that never had the plugin, where it simply applies the
+  schema fresh.
+
 ## 1.6.2 - 2026-07-29
 
 ### Fixed
