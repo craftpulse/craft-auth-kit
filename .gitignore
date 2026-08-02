@@ -17,3 +17,6 @@
 
 # Local, gitignored review checklists - never committed
 /smoke-testing/
+
+# Internal working records, local only
+/internal-docs/
