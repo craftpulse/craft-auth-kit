@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * SLOW-MODE test matrix for the registration token type. Registration is a
  * security boundary (CLAUDE.md): the failure paths are tested first and

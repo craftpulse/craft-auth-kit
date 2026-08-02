@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Tests for the passwords service: the validator registry no-op default, and
  * the aggregation of a registered failing validator's verdict and errors.

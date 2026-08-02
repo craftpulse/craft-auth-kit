@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * SLOW-MODE test matrix for per-consumer issuance scoping (1.4.0). Two
  * plugins (e.g. Warden and Warp) share one token store; the `origin` label

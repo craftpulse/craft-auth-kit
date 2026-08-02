@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * SLOW-MODE test matrix for the tokens service. Passwordless tokens are a
  * security boundary (CLAUDE.md): the failure paths are tested first and

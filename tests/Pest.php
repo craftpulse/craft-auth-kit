@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Pest configuration — binds craft-pest's TestCase AND its `RefreshesDatabase`
  * trait to every test in this suite. `TestCase` alone boots Craft but does NOT

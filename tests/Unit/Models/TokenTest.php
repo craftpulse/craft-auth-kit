@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Tests for the Token model: validation rules and the usability helpers that
  * the consume path relies on (expired / consumed / out-of-attempts / usable).

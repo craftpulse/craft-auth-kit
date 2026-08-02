@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Tests for the passkeys service: the recent-auth gate (the security-relevant
  * boundary Auth Kit owns) and the delegations to core's Auth service. The

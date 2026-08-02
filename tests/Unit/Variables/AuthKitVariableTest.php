@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Smoke tests for the `craft.authKit` Twig variable: that it is registered and
  * renders, and that its passwordless helpers behave for a guest.

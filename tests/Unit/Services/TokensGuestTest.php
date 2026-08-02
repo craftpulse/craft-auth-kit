@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * SLOW-MODE test matrix for the email-bound guest OTP (1.6.0). A guest code
  * proves control of an ARBITRARY mailbox — member or external, no user

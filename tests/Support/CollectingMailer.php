@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * A mailer test double: builds real craft\mail\Message instances via the
  * inherited composeFromKey(), but captures send() instead of dispatching, so

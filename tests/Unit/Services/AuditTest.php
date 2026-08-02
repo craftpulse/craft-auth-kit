@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Tests for the audit service: the sink registry no-op default, lazy assembly
  * from the registration event, ordered fan-out through record(), and the

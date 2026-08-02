@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Pest / PHPUnit bootstrap. Run the suite from Auth Kit's OWN root — its own
  * `vendor/bin/pest` (or `ddev composer test`, which resolves to the same
@@ -13,12 +13,12 @@
  * boots against the playground's live `db` instead of `db_test` and every
  * fixture this suite writes commits permanently.
  *
- * With the correct invocation the working directory is this plugin's own
- * root, so its own autoloader (already mapping both Craft and the plugin's
+ * With the correct invocation the working directory is this package's own
+ * root, so its own autoloader (already mapping both Craft and the package's
  * own `src`/`tests`) is authoritative and craft-pest's TestCase boots the
  * application itself against `db_test` — this file only wires autoloading,
- * installs the plugin under test, pins the process timezone, and lets Pest
- * auto-discover `tests/Pest.php`'s `uses()` bindings.
+ * registers the module under test and its schema, pins the process timezone,
+ * and lets Pest auto-discover `tests/Pest.php`'s `uses()` bindings.
  *
  * @link      https://craft-pulse.com
  * @copyright Copyright (c) 2026 CraftPulse
@@ -56,22 +56,24 @@ if (is_object($composerLoader) && method_exists($composerLoader, 'addPsr4')) {
 // case".
 
 // =============================================================================
-// Plugin install — Auth Kit itself. craft-pest-core's InstallsCraft plugin
-// (which already booted Craft by this point in the Kernel sequence, see the
-// class docblock above) installs Craft core and applies any pending project
-// config, but never installs the plugin under test. Every test in this suite
-// reaches through `AuthKit::$plugin` (its Tokens/Passwords/Audit/Passkeys
-// services), which is null until installed, so without this step every test
-// fails on a null plugin access rather than on the behavior it actually
-// exercises.
+// Module registration — Auth Kit itself. craft-pest-core's InstallsCraft
+// plugin (which already booted Craft by this point in the Kernel sequence,
+// see the class docblock above) installs Craft core and applies any pending
+// project config, but knows nothing about a library-shipped module. This is
+// the exact wiring a consumer plugin performs: `register()` puts the module
+// on the application (making `AuthKit::$plugin` and the service accessors
+// live), and `Adoption::adoptFromPlugin()` plays the consumer upgrade
+// migration — on a `db_test` left over from the plugin era it adopts the
+// migration history and removes the stale `auth-kit` plugin row and project
+// config entry, and on a fresh `db_test` it degrades to a plain
+// `migrator->up()` that creates the schema. Both paths are idempotent, so
+// running this on every suite boot is safe and doubles as a standing
+// smoke test of the consumer wiring contract.
 // =============================================================================
 
 if (Craft::$app->getIsInstalled(true)) {
-    $plugins = Craft::$app->getPlugins();
-
-    if (!$plugins->isPluginInstalled('auth-kit')) {
-        $plugins->installPlugin('auth-kit');
-    }
+    craftpulse\authkit\AuthKit::register();
+    craftpulse\authkit\migrations\Adoption::adoptFromPlugin();
 }
 
 // =============================================================================

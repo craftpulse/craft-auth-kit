@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * A security component spy that counts bcrypt verifications, so tests can
  * assert code-path timing equivalence deterministically: every enumeration-
