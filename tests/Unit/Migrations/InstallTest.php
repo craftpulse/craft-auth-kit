@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Schema regression tests for the Install migration. Standalone Pest harnesses
  * (and any other consumer whose plugin-install detection lags reality) can

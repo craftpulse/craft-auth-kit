@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Re-runnability regression tests covering EVERY migration this plugin ships,
  * not just `Install`. Guarding `Install` alone is what let the failure come

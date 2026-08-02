@@ -1,6 +1,6 @@
 <?php
 /**
- * Auth Kit plugin for Craft CMS 5.x
+ * Auth Kit module for Craft CMS 5.x
  *
  * Foundational authentication primitives for Craft.
  *
@@ -16,8 +16,12 @@ use craft\helpers\Db;
 use craftpulse\authkit\db\Table;
 
 /**
- * Install creates Auth Kit's database schema on a fresh install and tears it
- * down on uninstall.
+ * Install creates Auth Kit's database schema. Since the module conversion
+ * (1.7.0) it is applied on the `module:auth-kit` track through its dated
+ * wrapper [[m260617_000000_Install]] — Craft's migration manager only
+ * discovers dated file names — while this class remains the canonical,
+ * idempotent schema owner. `safeDown()` is retained for completeness and
+ * tests; nothing in the module lifecycle tears the schema down.
  *
  * Auth Kit owns a single unified, type-discriminated token table backing both
  * magic links and email OTP codes. The raw token never touches the database —
