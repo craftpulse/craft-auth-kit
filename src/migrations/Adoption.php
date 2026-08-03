@@ -33,11 +33,11 @@ use craftpulse\authkit\db\Table;
  *    migration (plugin installs recorded it under the bare name `Install`,
  *    which maps to the module track's `m260617_000000_Install`). The orphaned
  *    plugin-track rows are then deleted.
- * 2. Plugin registration: removes the `auth-kit` row from the `plugins` table
- *    and the `plugins.auth-kit` project config entry, with project config
- *    events muted. Auth Kit's own tables are never touched — this is
- *    deliberately NOT `Plugins::uninstallPlugin()`, which would run
- *    `Install::safeDown()` and drop the token store.
+ * 2. Plugin registration: removes the `plugins.auth-kit` project config entry
+ *    with project config events muted and read-only temporarily lifted, then
+ *    the `auth-kit` row from the `plugins` table. Auth Kit's own tables are
+ *    never touched — this is deliberately NOT `Plugins::uninstallPlugin()`,
+ *    which would run `Install::safeDown()` and drop the token store.
  * 3. Catch-up: runs the module migrator's `up()`, applying anything genuinely
  *    pending — everything on a fresh install, only unapplied deltas on a
  *    partially-updated plugin-era install, nothing when already current.
@@ -98,7 +98,8 @@ final class Adoption
      * }
      * ```
      *
-     * @throws \Throwable if a pending Auth Kit migration fails to apply
+     * @throws \Throwable if the plugin-era registration cannot be removed, or a
+     * pending Auth Kit migration fails to apply
      *
      * @author CraftPulse
      * @since 1.7.0
@@ -169,18 +170,36 @@ final class Adoption
     }
 
     /**
-     * Removes the plugin era's registration: the `auth-kit` row in the
-     * `plugins` table and the `plugins.auth-kit` project config entry.
+     * Removes the plugin era's registration: the `plugins.auth-kit` project
+     * config entry and the `auth-kit` row in the `plugins` table.
      *
      * Both the loaded config and the external (YAML) config are checked,
-     * because leaving the entry behind in YAML would let the next external
-     * apply restore it. Project config events are muted around the removal so
-     * no uninstall-like side effect fires; they are triggered synchronously
-     * inside `set()` (see [[\craft\models\ProjectConfigData::commitChanges()]]),
-     * so the mute covers the whole removal and the flush that follows cannot
-     * re-fire them.
+     * because an entry left behind in YAML is treated as a plugin that still
+     * needs installing on the next external apply. The check alone is not
+     * enough to act on it, though, which is why the removal goes through
+     * `set(null, force: true)` rather than `remove()`. `remove()` is
+     * `set($path, null)`, and `set()` compares the new value against the
+     * **loaded** config only: for an entry that survives in YAML alone the
+     * loaded value is already `null`, so the comparison reads as unchanged,
+     * `set()` returns early without marking the YAML for a rewrite, and the
+     * flush below has nothing to do. Forcing the set marks the YAML dirty
+     * regardless, so the flush regenerates it without the entry.
      *
-     * The flush is explicit on purpose. `remove()` only commits to the loaded
+     * Project config events are muted and read-only is temporarily lifted
+     * across the removal and the flush, mirroring what Craft's own
+     * [[\craft\services\Plugins::uninstallPlugin()]] does, and both flags are
+     * restored afterwards. Muting matters because nothing may react to this as
+     * if a real uninstall were happening, and it has to span the flush as well
+     * as the removal: the events fire synchronously inside `set()` (see
+     * [[\craft\models\ProjectConfigData::commitChanges()]]), so a mute covering
+     * only the removal could still let the flush re-fire them. Lifting
+     * read-only matters because an install with `allowAdminChanges` off boots
+     * `projectConfig` with `readOnly` on (see
+     * [[\craft\helpers\App::projectConfigConfig()]]) and `set()` throws
+     * `NotSupportedException` on any real change while it is set, which would
+     * fail the consumer's upgrade migration outright.
+     *
+     * The flush is explicit on purpose. `set()` only commits to the loaded
      * working config and defers persistence to `EVENT_AFTER_REQUEST`, which a
      * migration cannot count on reaching (a console process that exits early,
      * or a harness that boots the app without a request lifecycle, would drop
@@ -188,8 +207,12 @@ final class Adoption
      * config data and, when the install writes YAML automatically, the YAML
      * files, so the removal is durable the moment the migration returns.
      *
-     * The database row goes last so a failure between the two steps is retried
-     * by the next adoption call. Auth Kit's own tables are never touched.
+     * The database row goes last so a failure between the two steps leaves a
+     * registration the next adoption call retries from, rather than a `plugins`
+     * table with no row and a project config that still names the plugin. Auth
+     * Kit's own tables are never touched.
+     *
+     * @throws \Throwable if the removal or the flush fails
      *
      * @author CraftPulse
      * @since 1.7.0
@@ -204,12 +227,15 @@ final class Adoption
 
         if ($isRegistered) {
             $muteEvents = $projectConfig->muteEvents;
+            $readOnly = $projectConfig->readOnly;
             $projectConfig->muteEvents = true;
+            $projectConfig->readOnly = false;
 
             try {
-                $projectConfig->remove($configKey, 'Adopt Auth Kit as a module');
+                $projectConfig->set($configKey, null, 'Adopt Auth Kit as a module', force: true);
                 $projectConfig->flush();
             } finally {
+                $projectConfig->readOnly = $readOnly;
                 $projectConfig->muteEvents = $muteEvents;
             }
         }

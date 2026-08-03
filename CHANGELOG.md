@@ -1,5 +1,10 @@
 # Release Notes for Auth Kit
 
+## 1.7.3 - 2026-08-03
+
+- Fixed a bug where `craftpulse\authkit\migrations\Adoption::adoptFromPlugin()` could leave the `plugins.auth-kit` project config entry behind in the external YAML config, where the next external apply treats it as a plugin that still needs installing and restores the registration the adoption had just shed.
+- Fixed an error that occurred when `craftpulse\authkit\migrations\Adoption::adoptFromPlugin()` ran on an install with `allowAdminChanges` set to `false`, where removing the plugin-era project config entry threw a `yii\base\NotSupportedException` and failed the consuming plugin's upgrade migration.
+
 ## 1.7.2 - 2026-08-03
 
 - Corrected the `@since` annotations on the registration token API, which named a never-tagged 1.1.0 rather than the 1.2.0 it shipped in.
