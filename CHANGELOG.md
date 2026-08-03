@@ -1,5 +1,9 @@
 # Release Notes for Auth Kit
 
+## 1.7.4 - 2026-08-03
+
+- Documented the boundary on `craftpulse\authkit\migrations\Adoption::adoptFromPlugin()`'s project config removal: where Craft has turned automatic YAML writing off because external changes are pending, the removal reaches the stored config only and the project config YAML keeps the entry until those changes are applied.
+
 ## 1.7.3 - 2026-08-03
 
 - Fixed a bug where `craftpulse\authkit\migrations\Adoption::adoptFromPlugin()` could leave the `plugins.auth-kit` project config entry behind in the external YAML config, where the next external apply treats it as a plugin that still needs installing and restores the registration the adoption had just shed.
