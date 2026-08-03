@@ -2,13 +2,13 @@
 /**
  * Auth Kit module for Craft CMS 5.x
  *
- * SLOW-MODE test matrix for per-consumer issuance scoping (1.4.0). Two
- * plugins (e.g. Warden and Warp) share one token store; the `origin` label
- * is the isolation boundary between them: a token issued by one consumer
- * must never be honored at another consumer's endpoint, per-origin OTPs must
- * not supersede each other, and per-issuance options (route, ttl, digits,
- * attempts, throttle) must override the shared service defaults so the
- * last-loaded plugin can no longer clobber the first's configuration.
+ * Test matrix for per-consumer issuance scoping (1.4.0). Two plugins (e.g.
+ * Warden and Warp) share one token store; the `origin` label is the isolation
+ * boundary between them: a token issued by one consumer must never be honored
+ * at another consumer's endpoint, per-origin OTPs must not supersede each
+ * other, and per-issuance options (route, ttl, digits, attempts, throttle)
+ * must override the shared service defaults so the last-loaded plugin can no
+ * longer clobber the first's configuration.
  *
  * @link      https://craft-pulse.com
  * @copyright Copyright (c) 2026 CraftPulse

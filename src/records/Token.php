@@ -44,7 +44,7 @@ use craftpulse\authkit\db\Table;
  * @property string $dateUpdated
  * @property string $uid
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class Token extends ActiveRecord

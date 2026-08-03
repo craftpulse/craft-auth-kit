@@ -28,7 +28,7 @@ use DateTime;
  * Usability is decided by [[isUsable()]]: a token is good only while it is
  * neither expired, already consumed, nor out of attempts.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class Token extends Model
@@ -65,7 +65,7 @@ class Token extends Model
      * mailbox possession for an address that has no user yet. Carries a null
      * `userId` and the target email in its payload.
      *
-     * @since 1.1.0
+     * @since 1.2.0
      */
     public const TYPE_REGISTER = 'register';
 
@@ -184,7 +184,7 @@ class Token extends Model
      * @param TokenRecord $record the record to hydrate from
      * @return self
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public static function fromRecord(TokenRecord $record): self
@@ -222,7 +222,7 @@ class Token extends Model
      *
      * @return bool
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function isConsumed(): bool
@@ -238,7 +238,7 @@ class Token extends Model
      *
      * @return bool
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function isExpired(): bool
@@ -256,7 +256,7 @@ class Token extends Model
      *
      * @return bool
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function isOutOfAttempts(): bool
@@ -274,7 +274,7 @@ class Token extends Model
      *
      * @return bool
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function isUsable(): bool

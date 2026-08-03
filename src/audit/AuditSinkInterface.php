@@ -32,7 +32,7 @@ namespace craftpulse\authkit\audit;
  *
  * Treat any change to this interface as a major version bump.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.2.0
  */
 interface AuditSinkInterface
@@ -47,7 +47,7 @@ interface AuditSinkInterface
      *
      * @param AuthEvent $event the event to handle
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.2.0
      */
     public function handle(AuthEvent $event): void;

@@ -2,13 +2,13 @@
 /**
  * Auth Kit module for Craft CMS 5.x
  *
- * SLOW-MODE test matrix for the email-bound guest OTP (1.6.0). A guest code
- * proves control of an ARBITRARY mailbox — member or external, no user
- * required — and never logs anyone in or mints a session. The suite mirrors
- * the user-bound OTP matrix: issue/consume happy path, the attempt cap,
- * per-email supersede, single-use, expiry, origin isolation, GC, the
- * enumeration-safe timing profile, and the no-user (external email) round trip
- * the whole primitive exists for.
+ * Test matrix for the email-bound guest OTP (1.6.0). A guest code proves
+ * control of an ARBITRARY mailbox — member or external, no user required — and
+ * never logs anyone in or mints a session. The suite mirrors the user-bound
+ * OTP matrix: issue/consume happy path, the attempt cap, per-email supersede,
+ * single-use, expiry, origin isolation, GC, the enumeration-safe timing
+ * profile, and the no-user (external email) round trip the whole primitive
+ * exists for.
  *
  * @link      https://craft-pulse.com
  * @copyright Copyright (c) 2026 CraftPulse

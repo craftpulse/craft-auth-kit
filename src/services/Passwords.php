@@ -30,7 +30,7 @@ use yii\base\Component;
  *
  * An instance of the service is available via `AuthKit::$plugin->getPasswords()`.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class Passwords extends Component
@@ -66,7 +66,7 @@ class Passwords extends Component
      *
      * @return PasswordValidatorInterface[]
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function getValidators(): array
@@ -86,7 +86,7 @@ class Passwords extends Component
      *
      * @param PasswordValidatorInterface[] $validators the validators to register
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function setValidators(array $validators): void
@@ -104,7 +104,7 @@ class Passwords extends Component
      * @param User|null $user the user the password is for, when known
      * @return PasswordValidationResult the aggregate verdict
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function validate(string $password, ?User $user = null): PasswordValidationResult

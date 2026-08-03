@@ -20,7 +20,7 @@ use craftpulse\authkit\AuthKit;
  * the list of them for a management UI, and the published URL of the reference
  * WebAuthn client.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class AuthKitVariable
@@ -33,7 +33,7 @@ class AuthKitVariable
      *
      * @return bool
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function hasPasskeys(): bool
@@ -48,7 +48,7 @@ class AuthKitVariable
      *
      * @return array<int, array<string, mixed>>
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function passkeys(): array
@@ -63,7 +63,7 @@ class AuthKitVariable
      *
      * @return string
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function webauthnJsUrl(): string
@@ -85,7 +85,7 @@ class AuthKitVariable
      *
      * @return User|null
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _currentUser(): ?User

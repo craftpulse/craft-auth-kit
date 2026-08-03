@@ -1,5 +1,9 @@
 # Release Notes for Auth Kit
 
+## 1.7.2 - 2026-08-03
+
+- Corrected the `@since` annotations on the registration token API, which named a never-tagged 1.1.0 rather than the 1.2.0 it shipped in.
+
 ## 1.7.1 - 2026-08-03
 
 - Added a documentation set under `docs/`, covering requirements, installation and consumer setup, the plugin-era upgrade path, and a feature tour of the token core, passkeys, password validation, audit events, template variables, and events.

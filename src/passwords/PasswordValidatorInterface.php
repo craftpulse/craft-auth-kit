@@ -23,7 +23,7 @@ use craft\elements\User;
  * coupling. If no validator is registered the service is a graceful no-op.
  * Treat any change to this interface as a major version bump (see PLAN §8).
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 interface PasswordValidatorInterface
@@ -39,7 +39,7 @@ interface PasswordValidatorInterface
      * @param User|null $user the user the password is for, when known
      * @return PasswordValidationResult the validator's verdict
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function validate(string $password, ?User $user): PasswordValidationResult;

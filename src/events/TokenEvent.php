@@ -20,7 +20,7 @@ use craftpulse\authkit\models\Token;
  * still-usable token and its target user — handlers may cancel via `$isValid`
  * to refuse the login before the token is burned.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class TokenEvent extends CancelableEvent

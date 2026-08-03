@@ -32,7 +32,7 @@ use yii\db\Expression;
  * one-time codes (OTP), and registration links — backed by a single hashed,
  * single-use, TTL'd token store.
  *
- * Security invariants (SLOW MODE — see CLAUDE.md):
+ * Security invariants:
  *
  * - The raw token (32 random bytes for a magic link, a short numeric code for
  *   an OTP) is never persisted; only its sha256 hash is stored, and the hash
@@ -70,7 +70,7 @@ use yii\db\Expression;
  *
  * An instance of the service is available via `AuthKit::$plugin->getTokens()`.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class Tokens extends Component
@@ -117,7 +117,7 @@ class Tokens extends Component
     /**
      * @var string The system message key used to compose the registration email.
      *
-     * @since 1.1.0
+     * @since 1.2.0
      */
     public const MESSAGE_KEY_REGISTER = 'auth_kit_register';
 
@@ -211,7 +211,7 @@ class Tokens extends Component
      * may override the route here. The raw token is appended as a
      * [[TOKEN_PARAM]] query parameter.
      *
-     * @since 1.1.0
+     * @since 1.2.0
      */
     public string $registrationRoute = 'auth-kit/registration/verify';
 
@@ -247,7 +247,7 @@ class Tokens extends Component
      * @param string|null $origin the consuming plugin's origin label, or null for legacy scope
      * @return User|null the user to log in, or null on any failure
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function consumeMagicLink(string $rawToken, ?string $origin = null): ?User
@@ -289,7 +289,7 @@ class Tokens extends Component
      * @param string|null $origin the consuming plugin's origin label, or null for legacy scope
      * @return User|null the user to log in, or null on any failure
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function consumeOtp(string $email, string $code, ?string $origin = null): ?User
@@ -377,7 +377,7 @@ class Tokens extends Component
      * @param string $origin the consuming plugin's origin label
      * @return bool whether the code proved control of the mailbox
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.6.0
      */
     public function consumeGuestOtp(string $email, string $code, string $origin): bool
@@ -459,8 +459,8 @@ class Tokens extends Component
      * @param string|null $origin the consuming plugin's origin label, or null for legacy scope
      * @return Token|null the burned token, or null on any failure
      *
-     * @author Michael Thomas
-     * @since 1.1.0
+     * @author CraftPulse
+     * @since 1.2.0
      */
     public function consumeRegistration(string $rawToken, ?string $origin = null): ?Token
     {
@@ -496,7 +496,7 @@ class Tokens extends Component
      * @return bool whether a link was issued
      * @throws InvalidArgumentException on an unknown or malformed option
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function issueMagicLink(string $email, ?string $returnUrl = null, array $options = []): bool
@@ -544,7 +544,7 @@ class Tokens extends Component
      * @return bool whether a code was issued
      * @throws InvalidArgumentException on an unknown or malformed option
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function issueOtp(string $email, array $options = []): bool
@@ -599,7 +599,7 @@ class Tokens extends Component
      * @param array<string, mixed> $options per-issuance overrides — `ttl`, `digits`, `maxAttempts`, `perEmailLimit`, `perEmailWindow` (see [[_normalizeOptions()]])
      * @throws InvalidArgumentException on an unknown or malformed option, or a malformed origin
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.6.0
      */
     public function issueGuestOtp(string $email, string $origin, array $options = []): void
@@ -664,8 +664,8 @@ class Tokens extends Component
      * @return bool whether a link was issued
      * @throws InvalidArgumentException on an unknown or malformed option
      *
-     * @author Michael Thomas
-     * @since 1.1.0
+     * @author CraftPulse
+     * @since 1.2.0
      */
     public function issueRegistration(string $email, ?string $returnUrl = null, array $options = []): bool
     {
@@ -739,7 +739,7 @@ class Tokens extends Component
      *
      * @return int the number of rows deleted
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function purgeExpiredTokens(): int
@@ -766,7 +766,7 @@ class Tokens extends Component
      * @return array<string, mixed> the validated options
      * @throws InvalidArgumentException on an unknown key or malformed value
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.4.0
      */
     private function _normalizeOptions(array $options, array $allowed): array
@@ -809,8 +809,8 @@ class Tokens extends Component
      * @param array<string, mixed> $options the normalized issuance options
      * @return Token
      *
-     * @author Michael Thomas
-     * @since 1.1.0
+     * @author CraftPulse
+     * @since 1.2.0
      */
     private function _buildRegistrationToken(string $rawToken, array $payload, array $options = []): Token
     {
@@ -841,7 +841,7 @@ class Tokens extends Component
      * @param array<string, mixed> $options the normalized issuance options
      * @return Token
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.6.0
      */
     private function _buildGuestToken(string $email, string $code, ?int $maxAttempts, array $options = []): Token
@@ -869,7 +869,7 @@ class Tokens extends Component
      * @param array<string, mixed> $options the normalized issuance options
      * @return Token
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _buildToken(User $user, string $type, string $rawToken, ?int $maxAttempts, ?array $payload, array $options = []): Token
@@ -892,7 +892,7 @@ class Tokens extends Component
      *
      * @return CacheInterface
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _cache(): CacheInterface
@@ -907,7 +907,7 @@ class Tokens extends Component
      * Performs a fixed-cost bcrypt verification so a no-user branch cannot be
      * trivially distinguished from the real path by timing.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _equalizeTiming(): void
@@ -923,7 +923,7 @@ class Tokens extends Component
      * @param Token $model the looked-up token
      * @return User|null
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _finalizeConsume(Token $model): ?User
@@ -987,8 +987,8 @@ class Tokens extends Component
      * @param Token $model the looked-up token
      * @return Token|null
      *
-     * @author Michael Thomas
-     * @since 1.1.0
+     * @author CraftPulse
+     * @since 1.2.0
      */
     private function _finalizeRegistrationConsume(Token $model): ?Token
     {
@@ -1027,7 +1027,7 @@ class Tokens extends Component
      *
      * @return string
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _generateOtpCode(?int $digits = null): string
@@ -1046,7 +1046,7 @@ class Tokens extends Component
      * @param string $email the mailbox the code is bound to
      * @return string the sha256 subject digest
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.6.0
      */
     private function _guestSubject(string $email): string
@@ -1067,7 +1067,7 @@ class Tokens extends Component
      * @param string $code the raw OTP code
      * @return string the scoped sha256 digest
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.6.0
      */
     private function _hashGuestOtpCode(string $email, string $code): string
@@ -1091,7 +1091,7 @@ class Tokens extends Component
      * @param string $code the raw OTP code
      * @return string the scoped sha256 digest
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.1
      */
     private function _hashOtpCode(User $user, string $code): string
@@ -1104,7 +1104,7 @@ class Tokens extends Component
      *
      * @return Mailer
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _mailer(): Mailer
@@ -1124,7 +1124,7 @@ class Tokens extends Component
      *
      * @param Token $model the token a wrong code was submitted against
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _registerFailedOtpAttempt(Token $model): void
@@ -1158,7 +1158,7 @@ class Tokens extends Component
      * @param array<string, mixed> $options the normalized issuance options (throttle overrides)
      * @return User|null the active user, or null if issuance must not proceed
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _resolveIssuableUser(string $email, array $options = []): ?User
@@ -1194,7 +1194,7 @@ class Tokens extends Component
      * @param Token $token the token to store (its `id`/`uid` are populated)
      * @return bool whether the row was written
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _saveToken(Token $token): bool
@@ -1233,7 +1233,7 @@ class Tokens extends Component
      * @param string $email the recipient address
      * @param array<string, mixed> $variables the message variables
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _sendEmail(string $key, string $email, array $variables): void
@@ -1255,7 +1255,7 @@ class Tokens extends Component
      * @param string $email the mailbox whose prior guest codes are superseded
      * @param string $origin the issuing origin — supersede stays within it
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.6.0
      */
     private function _supersedeGuestOtps(string $email, string $origin): void
@@ -1274,7 +1274,7 @@ class Tokens extends Component
      * @param int $userId the user whose prior OTPs are superseded
      * @param string|null $origin the issuing origin — supersede stays within it
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _supersedeOtps(int $userId, ?string $origin = null): void
@@ -1300,7 +1300,7 @@ class Tokens extends Component
      * @param array<string, mixed> $options the normalized issuance options (`origin`, `perEmailLimit`, `perEmailWindow`)
      * @return bool whether issuance may proceed
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _withinEmailThrottle(string $email, array $options = []): bool

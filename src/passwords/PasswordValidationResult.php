@@ -26,7 +26,7 @@ namespace craftpulse\authkit\passwords;
  * returns merges every registered validator's verdict — invalid if any
  * validator rejected, with all of their errors collected.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 final class PasswordValidationResult
@@ -57,7 +57,7 @@ final class PasswordValidationResult
      * @param bool $isValid whether the password is acceptable
      * @param string[] $errors the rejection reasons, empty when valid
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.1
      */
     public function __construct(bool $isValid, array $errors = [])
@@ -72,7 +72,7 @@ final class PasswordValidationResult
      * @param string[] $errors the rejection reasons
      * @return self
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public static function invalid(array $errors): self
@@ -85,7 +85,7 @@ final class PasswordValidationResult
      *
      * @return self
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public static function valid(): self

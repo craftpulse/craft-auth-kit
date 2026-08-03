@@ -2,12 +2,11 @@
 /**
  * Auth Kit module for Craft CMS 5.x
  *
- * SLOW-MODE test matrix for the tokens service. Passwordless tokens are a
- * security boundary (CLAUDE.md): the failure paths are tested first and
- * exhaustively — expired, already-consumed, tampered/unknown token,
- * single-use, ineligible users — alongside the issue-side enumeration
- * behaviour, the OTP attempt/supersede semantics, and the happy-path round
- * trip for both token types.
+ * Test matrix for the tokens service. Passwordless tokens are a security
+ * boundary: the failure paths are tested first and exhaustively — expired,
+ * already-consumed, tampered/unknown token, single-use, ineligible users —
+ * alongside the issue-side enumeration behaviour, the OTP attempt/supersede
+ * semantics, and the happy-path round trip for both token types.
  *
  * @link      https://craft-pulse.com
  * @copyright Copyright (c) 2026 CraftPulse

@@ -42,7 +42,7 @@ use yii\web\ForbiddenHttpException;
  *
  * An instance of the service is available via `AuthKit::$plugin->getPasskeys()`.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class Passkeys extends Component
@@ -99,7 +99,7 @@ class Passkeys extends Component
      * @return bool whether the user held a passkey with that UID and it was removed
      * @throws ForbiddenHttpException if the session has not authenticated within [[recentAuthDuration]] seconds
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function deletePasskey(User $user, string $uid, ?int $within = null): bool
@@ -126,7 +126,7 @@ class Passkeys extends Component
      * @param User $user the user enrolling a passkey
      * @return string the JSON-serialized creation options
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function getCreationOptions(User $user): string
@@ -143,7 +143,7 @@ class Passkeys extends Component
      * @param User $user the credential owner
      * @return array<int, array<string, mixed>>
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function getPasskeys(User $user): array
@@ -158,7 +158,7 @@ class Passkeys extends Component
      * @param int|null $within the window in seconds, or null for [[recentAuthDuration]]
      * @return bool
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function hasRecentAuth(?int $within = null): bool
@@ -180,7 +180,7 @@ class Passkeys extends Component
      * @param User $user the user to check
      * @return bool
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function hasPasskeys(User $user): bool
@@ -193,7 +193,7 @@ class Passkeys extends Component
      * login handler so every login path refreshes the recent-auth window
      * consistently.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function stampRecentAuth(): void
@@ -210,7 +210,7 @@ class Passkeys extends Component
      * @return bool whether the credential was verified and stored
      * @throws ForbiddenHttpException if the session has not authenticated within the window
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function verifyCreation(string $credentials, ?string $credentialName = null, ?int $within = null): bool
@@ -228,7 +228,7 @@ class Passkeys extends Component
      *
      * @return Auth
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _auth(): Auth
@@ -246,7 +246,7 @@ class Passkeys extends Component
      *
      * @throws ForbiddenHttpException if the session has not authenticated within [[recentAuthDuration]] seconds
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.1
      */
     private function _requireRecentAuth(?int $within = null): void
@@ -262,7 +262,7 @@ class Passkeys extends Component
      *
      * @return \craft\web\Session
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _session(): \craft\web\Session

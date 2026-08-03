@@ -32,8 +32,8 @@ use craftpulse\authkit\db\Table;
  * skips the check for nulls, so registration tokens carry no dangling
  * reference.
  *
- * @author Michael Thomas
- * @since 1.1.0
+ * @author CraftPulse
+ * @since 1.2.0
  */
 class m260711_000001_MakeTokenUserIdNullable extends Migration
 {
@@ -140,8 +140,8 @@ class m260711_000001_MakeTokenUserIdNullable extends Migration
      * skipped rather than attempted against a schema this migration cannot
      * repair.
      *
-     * @author Michael Thomas
-     * @since 1.1.0
+     * @author CraftPulse
+     * @since 1.2.0
      */
     private function _userIdAllowsNull(): bool
     {

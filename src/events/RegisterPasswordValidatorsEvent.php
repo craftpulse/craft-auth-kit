@@ -17,7 +17,7 @@ use yii\base\Event;
  * RegisterPasswordValidatorsEvent collects the password validators a provider
  * plugin contributes to the Auth Kit `passwords` registry.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class RegisterPasswordValidatorsEvent extends Event

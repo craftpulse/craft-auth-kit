@@ -26,7 +26,7 @@ use craftpulse\authkit\db\Table;
  * the attempt cap mirrors the user-bound path exactly. Existing rows and every
  * other token type keep a null `subject`.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.6.0
  */
 class m260718_000001_AddTokenSubject extends Migration

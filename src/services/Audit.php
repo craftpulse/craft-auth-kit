@@ -35,7 +35,7 @@ use yii\base\Component;
  *
  * An instance of the service is available via `AuthKit::$plugin->getAudit()`.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.2.0
  */
 class Audit extends Component
@@ -82,7 +82,7 @@ class Audit extends Component
      *
      * @return AuditSinkInterface[]
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.2.0
      */
     public function getSinks(): array
@@ -104,7 +104,7 @@ class Audit extends Component
      *
      * @param AuthEvent $event the event to record
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.2.0
      */
     public function record(AuthEvent $event): void
@@ -141,7 +141,7 @@ class Audit extends Component
      *
      * @param AuditSinkInterface[] $sinks the sinks to register
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.2.0
      */
     public function setSinks(array $sinks): void

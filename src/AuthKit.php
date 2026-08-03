@@ -40,7 +40,7 @@ use yii\base\Module;
  * - `Adoption::adoptFromPlugin()` from a one-time consumer upgrade migration —
  *   converts a plugin-era install (see [[migrations\Adoption]]).
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class AuthKit extends Module
@@ -94,7 +94,7 @@ class AuthKit extends Module
      *
      * @return AuthKit
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.7.0
      */
     public static function register(): AuthKit
@@ -113,7 +113,7 @@ class AuthKit extends Module
      *
      * @return AuthKit
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.7.0
      */
     public static function getInstance(): AuthKit
@@ -173,7 +173,7 @@ class AuthKit extends Module
      *
      * @return MigrationManager
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.7.0
      */
     public function getMigrator(): MigrationManager
@@ -223,7 +223,7 @@ class AuthKit extends Module
      * and leaves `getTokens()` resolving Craft's token service instead of Auth
      * Kit's — a silent substitution with no error anywhere.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.7.0
      */
     private function _registerComponents(): void
@@ -247,7 +247,7 @@ class AuthKit extends Module
      * module must claim its plugin-era category itself to keep every existing
      * `Craft::t('auth-kit', ...)` call site working.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.7.0
      */
     private function _registerTranslations(): void
@@ -273,7 +273,7 @@ class AuthKit extends Module
      * package's `migrations/` directory, with history recorded under the
      * module track in the `migrations` table.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.7.0
      */
     private function _registerMigrator(): void

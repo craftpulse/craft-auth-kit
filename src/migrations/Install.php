@@ -29,7 +29,7 @@ use craftpulse\authkit\db\Table;
  * unique constraint on `tokenHash` is part of the security model and is
  * enforced at the database level, not just validation.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 class Install extends Migration
@@ -76,7 +76,7 @@ class Install extends Migration
      * `addForeignKey()` has no name-collision protection of its own to fall
      * back on.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _addForeignKeys(): void
@@ -94,7 +94,7 @@ class Install extends Migration
      * @param array<int, string> $refColumns the referenced columns
      * @param string $delete the `ON DELETE` behavior
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _addForeignKeyIfMissing(string $table, array $columns, string $refTable, array $refColumns, string $delete): void
@@ -127,7 +127,7 @@ class Install extends Migration
      * re-running this migration against an already-indexed table is a true
      * no-op.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _createIndexes(): void
@@ -141,7 +141,7 @@ class Install extends Migration
     /**
      * Creates Auth Kit's tables, skipping any that already exist.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _createTables(): void

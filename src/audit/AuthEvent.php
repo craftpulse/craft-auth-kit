@@ -41,7 +41,7 @@ use InvalidArgumentException;
  *   forward compatibility requires that a newer emitter's name survive an older
  *   Auth Kit, and sinks tolerate unknown names by design.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.2.0
  */
 final class AuthEvent
@@ -212,7 +212,7 @@ final class AuthEvent
      * @throws InvalidArgumentException if $outcome is not a known outcome
      * constant, or if any $details value is not scalar
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.2.0
      */
     public function __construct(

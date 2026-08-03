@@ -26,7 +26,7 @@ use yii\base\Event;
  * object and never lets a listener mutate the fan-out. Treat the property as the
  * contract.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.5.0
  */
 class AuditRecordEvent extends Event

@@ -2,12 +2,11 @@
 /**
  * Auth Kit module for Craft CMS 5.x
  *
- * SLOW-MODE test matrix for the registration token type. Registration is a
- * security boundary (CLAUDE.md): the failure paths are tested first and
- * exhaustively — an address that already has an account (of any status),
- * expired / already-consumed / unknown tokens, single-use, and a canceled
- * before-consume — alongside the issue-side enumeration timing parity and the
- * happy-path round trip.
+ * Test matrix for the registration token type. Registration is a security
+ * boundary: the failure paths are tested first and exhaustively — an address
+ * that already has an account (of any status), expired / already-consumed /
+ * unknown tokens, single-use, and a canceled before-consume — alongside the
+ * issue-side enumeration timing parity and the happy-path round trip.
  *
  * The `tokens()`, `tokenUser()`, and `countEqualizerCalls()` helpers are shared
  * with TokensTest.php (both files load for the whole suite); only the

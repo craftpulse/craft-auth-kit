@@ -19,7 +19,7 @@ use craftpulse\authkit\db\Table;
  * so two consuming plugins sharing the store can no longer honor each other's
  * credentials; existing rows keep a null origin (legacy scope).
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.4.0
  */
 class m260716_000001_AddTokenOrigin extends Migration

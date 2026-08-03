@@ -26,7 +26,7 @@ namespace craftpulse\authkit\migrations;
  * marks it as applied when the tokens table already exists. On fresh installs
  * it runs first and the deltas after it are guarded no-ops.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.7.0
  */
 class m260617_000000_Install extends Install

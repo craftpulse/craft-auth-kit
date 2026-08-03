@@ -17,7 +17,7 @@ use yii\base\Event;
  * RegisterAuditSinksEvent collects the audit sinks a provider plugin contributes
  * to the Auth Kit `audit` registry.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.2.0
  */
 class RegisterAuditSinksEvent extends Event

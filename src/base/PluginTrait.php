@@ -32,7 +32,7 @@ use yii\base\Event;
  * on login, the `craft.authKit` Twig variable, and the editable system
  * messages backing the magic-link and OTP emails.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 trait PluginTrait
@@ -47,7 +47,7 @@ trait PluginTrait
      * application has fully initialized — which, for a module registered from
      * a consumer plugin's `init()`, is immediately after plugin loading.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _attachEventHandlers(): void
@@ -68,7 +68,7 @@ trait PluginTrait
      * `yii\base\Event` — there is no dedicated event class. Expired tokens are
      * already unusable, so deleting them is safe and needs no retention window.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _registerGarbageCollection(): void
@@ -91,7 +91,7 @@ trait PluginTrait
      * consistently. The session is regenerated before this fires, so the stamp
      * lands in the fresh session.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _registerRecentAuthTracking(): void
@@ -113,7 +113,7 @@ trait PluginTrait
      * OTP, and `link` + `email` for registration (the guest and registration
      * copy address the visitor without a friendly name, since no user exists).
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _registerSystemMessages(): void
@@ -156,7 +156,7 @@ trait PluginTrait
     /**
      * Registers the `craft.authKit` Twig variable.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     private function _registerVariable(): void

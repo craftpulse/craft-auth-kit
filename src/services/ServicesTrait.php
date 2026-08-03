@@ -26,7 +26,7 @@ namespace craftpulse\authkit\services;
  * @property-read Passwords $passwords
  * @property-read Tokens $tokens
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 trait ServicesTrait
@@ -39,7 +39,7 @@ trait ServicesTrait
      *
      * @return array<string, mixed>
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public static function config(): array
@@ -59,7 +59,7 @@ trait ServicesTrait
      *
      * @return Audit
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.2.0
      */
     public function getAudit(): Audit
@@ -75,7 +75,7 @@ trait ServicesTrait
      *
      * @return Passkeys
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function getPasskeys(): Passkeys
@@ -91,7 +91,7 @@ trait ServicesTrait
      *
      * @return Passwords
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function getPasswords(): Passwords
@@ -107,7 +107,7 @@ trait ServicesTrait
      *
      * @return Tokens
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.0.0
      */
     public function getTokens(): Tokens

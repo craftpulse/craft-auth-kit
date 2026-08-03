@@ -48,7 +48,7 @@ use craftpulse\authkit\db\Table;
  * Warden both ship an adoption migration on the same install, whichever runs
  * first does the work and the other finds nothing left to do.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.7.0
  */
 final class Adoption
@@ -100,7 +100,7 @@ final class Adoption
      *
      * @throws \Throwable if a pending Auth Kit migration fails to apply
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.7.0
      */
     public static function adoptFromPlugin(): void
@@ -126,7 +126,7 @@ final class Adoption
      * applied by the `up()` call that follows — and every Auth Kit migration
      * is re-runnable, so even an overlap would be harmless.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.7.0
      */
     private static function _adoptMigrationHistory(): void
@@ -191,7 +191,7 @@ final class Adoption
      * The database row goes last so a failure between the two steps is retried
      * by the next adoption call. Auth Kit's own tables are never touched.
      *
-     * @author Michael Thomas
+     * @author CraftPulse
      * @since 1.7.0
      */
     private static function _removePluginRegistration(): void

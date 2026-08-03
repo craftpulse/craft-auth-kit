@@ -13,7 +13,7 @@ namespace craftpulse\authkit\db;
 /**
  * Table defines the database table names owned by Auth Kit.
  *
- * @author Michael Thomas
+ * @author CraftPulse
  * @since 1.0.0
  */
 abstract class Table
