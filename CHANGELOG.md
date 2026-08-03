@@ -1,6 +1,12 @@
 # Release Notes for Auth Kit
 
-## 1.7.0 - Unreleased
+## 1.7.1 - 2026-08-03
+
+- Added a documentation set under `docs/`, covering requirements, installation and consumer setup, the plugin-era upgrade path, and a feature tour of the token core, passkeys, password validation, audit events, template variables, and events.
+- Corrected the documented registration-token behaviour: a token is issuable for an address belonging to a pending account, so its holder can complete signup, and is refused for an account in any other state.
+- Documented the per-call options accepted by every issuance, the `$origin` argument on every consume, `craftpulse\authkit\services\Tokens::TOKEN_PARAM`, and that expired-token purging is already wired to Craft's garbage collection.
+
+## 1.7.0 - 2026-08-02
 
 ### Changed
 - Auth Kit is now a library-shipped Yii module instead of a Craft plugin,
