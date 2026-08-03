@@ -203,6 +203,23 @@ afterEach(function() {
     $projectConfig->reset();
 });
 
+it('writes nothing on an install that never had the plugin', function() {
+    // tests/Bootstrap.php already adopted, so this is the state a genuinely
+    // fresh install presents: no plugins row, no stored config entry.
+    expect(authKitPluginRowExists())->toBeFalse();
+    expect(authKitStoredConfigPaths())->toBe([]);
+
+    expect(fn() => Adoption::adoptFromPlugin())->not->toThrow(Throwable::class);
+
+    expect(authKitPluginRowExists())->toBeFalse();
+    expect(authKitStoredConfigPaths())->toBe([]);
+
+    // A clean no-op, not merely a quiet one: `saveModifiedConfigData()` is the
+    // only thing that rerolls configVersion and `flush()` is the only way to
+    // reach it, so an unchanged version proves nothing was written at all.
+    expect(Craft::$app->getInfo()->configVersion)->toBe($this->configVersion);
+});
+
 it('removes a plugin-era entry that survives only in the external config', function() {
     $projectConfig = Craft::$app->getProjectConfig();
     $projectConfig->writeYamlAutomatically = true;

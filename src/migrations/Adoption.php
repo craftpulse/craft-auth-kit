@@ -14,6 +14,7 @@ use Craft;
 use craft\db\Query;
 use craft\db\Table as CraftTable;
 use craft\helpers\Db;
+use craft\services\ProjectConfig;
 use craftpulse\authkit\AuthKit;
 use craftpulse\authkit\db\Table;
 
@@ -205,7 +206,12 @@ final class Adoption
      * or a harness that boots the app without a request lifecycle, would drop
      * the change and leave the plugin registered). Flushing here writes the
      * config data and, when the install writes YAML automatically, the YAML
-     * files, so the removal is durable the moment the migration returns.
+     * files, so the removal is durable the moment the migration returns. Where
+     * Craft has deliberately turned automatic YAML writing off because external
+     * changes are pending (see
+     * [[\craft\console\controllers\MigrateController::runAction()]]), the flush
+     * writes the stored config only and the developer's YAML is left alone; a
+     * `project-config/diff` after the upgrade shows what is still to apply.
      *
      * The database row goes last so a failure between the two steps leaves a
      * registration the next adoption call retries from, rather than a `plugins`
@@ -220,7 +226,7 @@ final class Adoption
     private static function _removePluginRegistration(): void
     {
         $projectConfig = Craft::$app->getProjectConfig();
-        $configKey = 'plugins.' . AuthKit::ID;
+        $configKey = ProjectConfig::PATH_PLUGINS . '.' . AuthKit::ID;
 
         $isRegistered = $projectConfig->get($configKey) !== null
             || $projectConfig->get($configKey, true) !== null;
