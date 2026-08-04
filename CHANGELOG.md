@@ -1,5 +1,11 @@
 # Release Notes for Auth Kit
 
+## Unreleased
+
+- The magic-link, one-time code, guest code, and registration emails now state exactly how long their credential lasts ("It expires in 15 minutes and can be used only once") instead of saying it expires shortly.
+- Added the `expiresIn` variable to all four emails, the issuance's own lifetime formatted for reading, so a rewritten body can state the expiry too. An install that has already edited a body keeps its copy and can add the variable under Settings, Email, System Messages.
+- Added `craftpulse\authkit\helpers\Duration::human()`, which formats a lifetime in seconds as the phrase the emails use, so a consuming plugin can state the same lifetime in its own front-end copy with the same wording.
+
 ## 1.7.4 - 2026-08-03
 
 - Documented the boundary on `craftpulse\authkit\migrations\Adoption::adoptFromPlugin()`'s project config removal: where Craft has turned automatic YAML writing off because external changes are pending, the removal reaches the stored config only and the project config YAML keeps the entry until those changes are applied.

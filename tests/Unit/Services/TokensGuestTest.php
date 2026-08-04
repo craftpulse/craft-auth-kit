@@ -121,6 +121,14 @@ it('issues a numeric guest OTP for an external non-user email and emails it', fu
         ->and($record->dateConsumed)->toBeNull();
 });
 
+it('tells a guest recipient the exact lifetime of the code it just issued', function() {
+    $mailer = new CollectingMailer();
+
+    guestTokens($mailer)->issueGuestOtp(guestEmail(), 'warrant', ['ttl' => 600]);
+
+    expect($mailer->sent[0]->variables['expiresIn'] ?? null)->toBe('10 minutes');
+});
+
 it('stores no raw email, only a hashed subject and an email-scoped code hash', function() {
     $email = guestEmail();
     $mailer = new CollectingMailer();

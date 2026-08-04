@@ -159,12 +159,14 @@ The four emails are editable system messages, so an install can rewrite the copy
 
 | Key | Description |
 |---|---|
-| `auth_kit_magic_link` | The magic-link email. Rendered with `link` and `user`. |
-| `auth_kit_otp` | The one-time code email. Rendered with `code` and `user`. |
-| `auth_kit_guest_otp` | The guest verification code email. Rendered with `code` and `email`. |
-| `auth_kit_register` | The registration link email. Rendered with `link` and `email`. |
+| `auth_kit_magic_link` | The magic-link email. Rendered with `link`, `user`, and `expiresIn`. |
+| `auth_kit_otp` | The one-time code email. Rendered with `code`, `user`, and `expiresIn`. |
+| `auth_kit_guest_otp` | The guest verification code email. Rendered with `code`, `email`, and `expiresIn`. |
+| `auth_kit_register` | The registration link email. Rendered with `link`, `email`, and `expiresIn`. |
 
 The guest and registration bodies address the visitor without a friendly name, because no user exists at that point.
+
+`expiresIn` is the credential's lifetime already formatted for reading, "15 minutes", "1 hour", "1 day". It follows the `ttl` the issuance actually used, so a consuming plugin passing its own per-call TTL gets that value quoted back rather than a shared default, and the default copy states it outright ("It expires in {{ expiresIn }} and can be used only once") instead of hedging. An install that has already rewritten a body keeps its own copy: add `{{ expiresIn }}` to it under **Settings** > **Email** > **System Messages** to state the expiry there too.
 
 The keys are available as constants on the service: `Tokens::MESSAGE_KEY_MAGIC_LINK`, `Tokens::MESSAGE_KEY_OTP`, `Tokens::MESSAGE_KEY_GUEST_OTP`, and `Tokens::MESSAGE_KEY_REGISTER`.
 

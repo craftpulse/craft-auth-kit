@@ -325,6 +325,14 @@ it('composes the registration email from the auth_kit_register system message', 
         ->and($mailer->lastLink())->toBeString();
 });
 
+it('tells a registrant the exact lifetime of the signup link it just issued', function() {
+    $mailer = new CollectingMailer();
+
+    tokens($mailer)->issueRegistration(unknownEmail(), null, ['ttl' => 1800]);
+
+    expect($mailer->sent[0]->variables['expiresIn'] ?? null)->toBe('30 minutes');
+});
+
 // Registration — enumeration timing parity
 // =========================================================================
 

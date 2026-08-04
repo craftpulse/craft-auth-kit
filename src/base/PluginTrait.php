@@ -112,6 +112,9 @@ trait PluginTrait
      * for magic links, `code` + `user` for OTP, `code` + `email` for the guest
      * OTP, and `link` + `email` for registration (the guest and registration
      * copy address the visitor without a friendly name, since no user exists).
+     * All four additionally get `expiresIn`, the credential's lifetime already
+     * formatted for reading ("15 minutes", "1 hour"), so the copy can state the
+     * exact expiry instead of hedging.
      *
      * @author CraftPulse
      * @since 1.0.0
@@ -126,28 +129,28 @@ trait PluginTrait
                     'key' => Tokens::MESSAGE_KEY_MAGIC_LINK,
                     'heading' => Craft::t('auth-kit', 'When someone requests a magic sign-in link:'),
                     'subject' => Craft::t('auth-kit', 'Your sign-in link'),
-                    'body' => Craft::t('auth-kit', "Hi {{ user.friendlyName }},\n\nUse the link below to sign in. It expires shortly and can be used only once.\n\n{{ link }}\n\nIf you didn’t request this, you can safely ignore this email."),
+                    'body' => Craft::t('auth-kit', "Hi {{ user.friendlyName }},\n\nUse the link below to sign in. It expires in {{ expiresIn }} and can be used only once.\n\n{{ link }}\n\nIf you didn’t request this, you can safely ignore this email."),
                 ]);
 
                 $event->messages[] = new SystemMessage([
                     'key' => Tokens::MESSAGE_KEY_OTP,
                     'heading' => Craft::t('auth-kit', 'When someone requests a one-time sign-in code:'),
                     'subject' => Craft::t('auth-kit', 'Your sign-in code'),
-                    'body' => Craft::t('auth-kit', "Hi {{ user.friendlyName }},\n\nYour one-time sign-in code is:\n\n{{ code }}\n\nIt expires shortly and can be used only once. If you didn’t request this, you can safely ignore this email."),
+                    'body' => Craft::t('auth-kit', "Hi {{ user.friendlyName }},\n\nYour one-time sign-in code is:\n\n{{ code }}\n\nIt expires in {{ expiresIn }} and can be used only once. If you didn’t request this, you can safely ignore this email."),
                 ]);
 
                 $event->messages[] = new SystemMessage([
                     'key' => Tokens::MESSAGE_KEY_GUEST_OTP,
                     'heading' => Craft::t('auth-kit', 'When someone requests a one-time code to verify their email:'),
                     'subject' => Craft::t('auth-kit', 'Your verification code'),
-                    'body' => Craft::t('auth-kit', "Hi,\n\nYour one-time verification code is:\n\n{{ code }}\n\nIt expires shortly and can be used only once. If you didn’t request this, you can safely ignore this email."),
+                    'body' => Craft::t('auth-kit', "Hi,\n\nYour one-time verification code is:\n\n{{ code }}\n\nIt expires in {{ expiresIn }} and can be used only once. If you didn’t request this, you can safely ignore this email."),
                 ]);
 
                 $event->messages[] = new SystemMessage([
                     'key' => Tokens::MESSAGE_KEY_REGISTER,
                     'heading' => Craft::t('auth-kit', 'When someone requests a link to finish signing up:'),
                     'subject' => Craft::t('auth-kit', 'Finish setting up your account'),
-                    'body' => Craft::t('auth-kit', "Hi,\n\nUse the link below to finish setting up your account. It expires shortly and can be used only once.\n\n{{ link }}\n\nIf you didn’t request this, you can safely ignore this email."),
+                    'body' => Craft::t('auth-kit', "Hi,\n\nUse the link below to finish setting up your account. It expires in {{ expiresIn }} and can be used only once.\n\n{{ link }}\n\nIf you didn’t request this, you can safely ignore this email."),
                 ]);
             },
         );

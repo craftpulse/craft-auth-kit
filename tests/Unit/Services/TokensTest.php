@@ -124,6 +124,22 @@ it('issues a usable, hashed, single-use magic link and emails it to an active us
     expect(TokenRecord::findOne(['tokenHash' => $rawToken]))->toBeNull();
 });
 
+it('tells the recipient the exact lifetime of the credential it just issued', function() {
+    $user = tokenUser();
+    $mailer = new CollectingMailer();
+    $service = tokens($mailer);
+
+    // The default TTL, then a per-issuance one: the phrasing must follow the
+    // lifetime the token row actually got, never a shared default.
+    $service->issueMagicLink($user->email);
+    $service->issueOtp($user->email, ['ttl' => 3600]);
+    $service->issueMagicLink($user->email, null, ['ttl' => 86400]);
+
+    expect($mailer->sent[0]->variables['expiresIn'] ?? null)->toBe('15 minutes')
+        ->and($mailer->sent[1]->variables['expiresIn'] ?? null)->toBe('1 hour')
+        ->and($mailer->sent[2]->variables['expiresIn'] ?? null)->toBe('1 day');
+});
+
 it('carries a returnUrl through to the link and payload', function() {
     $user = tokenUser();
     $mailer = new CollectingMailer();

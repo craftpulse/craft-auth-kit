@@ -19,6 +19,7 @@ use craft\helpers\UrlHelper;
 use craft\mail\Mailer;
 use craftpulse\authkit\db\Table;
 use craftpulse\authkit\events\TokenEvent;
+use craftpulse\authkit\helpers\Duration;
 use craftpulse\authkit\models\Token;
 use craftpulse\authkit\records\Token as TokenRecord;
 use InvalidArgumentException;
@@ -524,7 +525,11 @@ class Tokens extends Component
         }
 
         $url = UrlHelper::siteUrl($options['route'] ?? $this->magicLinkRoute, $params);
-        $this->_sendEmail(self::MESSAGE_KEY_MAGIC_LINK, (string)$user->email, ['link' => $url, 'user' => $user]);
+        $this->_sendEmail(self::MESSAGE_KEY_MAGIC_LINK, (string)$user->email, [
+            'link' => $url,
+            'user' => $user,
+            'expiresIn' => $this->_expiresIn($options),
+        ]);
 
         $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => $user]));
 
@@ -568,7 +573,11 @@ class Tokens extends Component
             return false;
         }
 
-        $this->_sendEmail(self::MESSAGE_KEY_OTP, (string)$user->email, ['code' => $code, 'user' => $user]);
+        $this->_sendEmail(self::MESSAGE_KEY_OTP, (string)$user->email, [
+            'code' => $code,
+            'user' => $user,
+            'expiresIn' => $this->_expiresIn($options),
+        ]);
 
         $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => $user]));
 
@@ -636,7 +645,11 @@ class Tokens extends Component
             return;
         }
 
-        $this->_sendEmail(self::MESSAGE_KEY_GUEST_OTP, $email, ['code' => $code, 'email' => $email]);
+        $this->_sendEmail(self::MESSAGE_KEY_GUEST_OTP, $email, [
+            'code' => $code,
+            'email' => $email,
+            'expiresIn' => $this->_expiresIn($options),
+        ]);
 
         $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => null]));
     }
@@ -726,7 +739,11 @@ class Tokens extends Component
         }
 
         $url = UrlHelper::siteUrl($options['route'] ?? $this->registrationRoute, $params);
-        $this->_sendEmail(self::MESSAGE_KEY_REGISTER, $email, ['link' => $url, 'email' => $email]);
+        $this->_sendEmail(self::MESSAGE_KEY_REGISTER, $email, [
+            'link' => $url,
+            'email' => $email,
+            'expiresIn' => $this->_expiresIn($options),
+        ]);
 
         $this->trigger(self::EVENT_AFTER_ISSUE_TOKEN, new TokenEvent(['token' => $token, 'user' => null]));
 
@@ -913,6 +930,26 @@ class Tokens extends Component
     private function _equalizeTiming(): void
     {
         Craft::$app->getSecurity()->validatePassword('auth-kit-timing-equalizer', self::DUMMY_HASH);
+    }
+
+    /**
+     * Formats the lifetime an issuance is about to use as the phrase its email
+     * states — "15 minutes", "1 hour", "1 day".
+     *
+     * It reads the same `ttl` the token row is written with, falling back to
+     * [[$tokenTtl]] exactly as [[_buildToken()]] does, so the recipient is told
+     * the lifetime their credential actually has: a consuming plugin passing its
+     * own TTL per issuance has that value quoted back, never a shared default.
+     *
+     * @param array<string, mixed> $options the normalized per-issuance options
+     * @return string
+     *
+     * @author CraftPulse
+     * @since 1.8.0
+     */
+    private function _expiresIn(array $options): string
+    {
+        return Duration::human((int)($options['ttl'] ?? $this->tokenTtl));
     }
 
     /**
