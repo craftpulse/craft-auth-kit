@@ -1,9 +1,9 @@
 # Release Notes for Auth Kit
 
-## Unreleased
+## 1.8.0 - 2026-08-04
 
 - The magic-link, one-time code, guest code, and registration emails now state exactly how long their credential lasts ("It expires in 15 minutes and can be used only once") instead of saying it expires shortly.
-- Added the `expiresIn` variable to all four emails, the issuance's own lifetime formatted for reading, so a rewritten body can state the expiry too. An install that has already edited a body keeps its copy and can add the variable under Settings, Email, System Messages.
+- Added the `expiresIn` variable to all four emails, the issuance's own lifetime formatted for reading, so a rewritten body can state the expiry too. An install that has already edited a body keeps its copy and can add the variable under Utilities, System Messages.
 - Added `craftpulse\authkit\helpers\Duration::human()`, which formats a lifetime in seconds as the phrase the emails use, so a consuming plugin can state the same lifetime in its own front-end copy with the same wording.
 - Documented the three levers an install has over the four emails: editing the copy in the control panel, translating the defaults through the `auth-kit` translation category, and styling them with Craft's HTML email template setting. It also covers which language an email renders in and what an edited message stops following.
 - Corrected the control-panel location of the system messages screen in the documentation: it is under Utilities, then System Messages, not under the email settings.
