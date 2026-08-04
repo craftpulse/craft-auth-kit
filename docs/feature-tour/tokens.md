@@ -166,7 +166,9 @@ The four emails are editable system messages, so an install can rewrite the copy
 
 The guest and registration bodies address the visitor without a friendly name, because no user exists at that point.
 
-`expiresIn` is the credential's lifetime already formatted for reading, "15 minutes", "1 hour", "1 day". It follows the `ttl` the issuance actually used, so a consuming plugin passing its own per-call TTL gets that value quoted back rather than a shared default, and the default copy states it outright ("It expires in {{ expiresIn }} and can be used only once") instead of hedging. An install that has already rewritten a body keeps its own copy: add `{{ expiresIn }}` to it under **Settings** > **Email** > **System Messages** to state the expiry there too.
+`expiresIn` is the credential's lifetime already formatted for reading, "15 minutes", "1 hour", "1 day". It follows the `ttl` the issuance actually used, so a consuming plugin passing its own per-call TTL gets that value quoted back rather than a shared default, and the default copy states it outright ("It expires in {{ expiresIn }} and can be used only once") instead of hedging. An install that has already rewritten a body keeps its own copy: add `{{ expiresIn }}` to it to state the expiry there too.
+
+Editing the copy, translating it, and styling the HTML it lands in are covered in [Templates](templates.md#emails).
 
 The keys are available as constants on the service: `Tokens::MESSAGE_KEY_MAGIC_LINK`, `Tokens::MESSAGE_KEY_OTP`, `Tokens::MESSAGE_KEY_GUEST_OTP`, and `Tokens::MESSAGE_KEY_REGISTER`.
 
