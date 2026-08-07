@@ -147,6 +147,48 @@ final class AuthEvent
      */
     public const SESSION_REVOKED = 'session.revoked';
 
+    /**
+     * @var string A user was deprovisioned (`user.deprovisioned`); `details`
+     * carries the `trigger`, the channel the deprovision arrived on (`scim` |
+     * `webhook` | `sync`). Trigger values are additive vocabulary — sinks
+     * ignore values they don't recognize.
+     *
+     * Channel-neutral, unlike [[SCIM_DEPROVISIONED]]: an emitter deprovisions
+     * from a directory webhook or a scheduled reconciliation sweep as well as
+     * from a SCIM push, and naming every one of those `scim.*` misfiles the
+     * fact. Prefer this constant for new emitters.
+     *
+     * @since 1.9.0
+     */
+    public const USER_DEPROVISIONED = 'user.deprovisioned';
+
+    /**
+     * @var string A user was provisioned (`user.provisioned`); `details`
+     * carries the `trigger`, the channel the provision arrived on (`jit` |
+     * `scim`). Trigger values are additive vocabulary — sinks ignore values
+     * they don't recognize.
+     *
+     * Channel-neutral, unlike [[SCIM_PROVISIONED]]: a just-in-time provision
+     * at first login is not a SCIM fact. Prefer this constant for new
+     * emitters.
+     *
+     * @since 1.9.0
+     */
+    public const USER_PROVISIONED = 'user.provisioned';
+
+    /**
+     * @var string A deprovisioned user was restored (`user.restored`) —
+     * unsuspended, reactivated, or both; `details` carries the `trigger`, the
+     * channel the restore arrived on (`scim` | `webhook`). Trigger values are
+     * additive vocabulary — sinks ignore values they don't recognize.
+     *
+     * The counterpart to [[USER_DEPROVISIONED]]: an account regaining access
+     * is as much an audit fact as one losing it.
+     *
+     * @since 1.9.0
+     */
+    public const USER_RESTORED = 'user.restored';
+
     // Public Properties
     // =========================================================================
 
@@ -175,8 +217,8 @@ final class AuthEvent
 
     /**
      * @var string The neutral event name — one of the `LOGIN_*`, `PASSKEY_*`,
-     * `REGISTRATION_*`, `SCIM_*`, or `SESSION_*` constants. Not validated: sinks
-     * tolerate unknown names for forward compatibility.
+     * `REGISTRATION_*`, `SCIM_*`, `SESSION_*`, or `USER_*` constants. Not
+     * validated: sinks tolerate unknown names for forward compatibility.
      *
      * @since 1.2.0
      */
