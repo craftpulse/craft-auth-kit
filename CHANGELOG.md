@@ -1,5 +1,9 @@
 # Release Notes for Auth Kit
 
+## 1.9.0 - 2026-08-07
+
+- Added `craftpulse\authkit\audit\AuthEvent::USER_PROVISIONED`, `craftpulse\authkit\audit\AuthEvent::USER_DEPROVISIONED`, and `craftpulse\authkit\audit\AuthEvent::USER_RESTORED`, channel-neutral event names for account lifecycle changes that do not arrive through SCIM. Each carries the originating channel in its `details.trigger` value.
+
 ## 1.8.0 - 2026-08-04
 
 - The magic-link, one-time code, guest code, and registration emails now state exactly how long their credential lasts ("It expires in 15 minutes and can be used only once") instead of saying it expires shortly.
