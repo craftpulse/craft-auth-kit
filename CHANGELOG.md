@@ -1,5 +1,11 @@
 # Release Notes for Auth Kit
 
+## 1.11.0 - 2026-08-07
+
+- Added `isNewLocation` to the shared session registry and to `craftpulse\authkit\models\SessionInfo`, recording whether a sign-in came from a place the account had not been seen at before, so a consuming plugin can badge or filter on it rather than deciding again itself.
+- `isNewLocation` is null on sessions recorded before this release, meaning the question was never asked. That is deliberately distinct from false, which means the place was assessed and already known, so a site can tell the two apart when reporting on a member's sessions.
+- The new column reaches an existing install through the Auth Kit migrator, which a consuming plugin runs from its own migration. Updating the version constraint alone does not add it.
+
 ## 1.10.0 - 2026-08-07
 
 - Added `craftpulse\authkit\services\Sessions`, a shared session registry that records a row for every sign-in regardless of channel, so consuming plugins no longer each keep their own.
