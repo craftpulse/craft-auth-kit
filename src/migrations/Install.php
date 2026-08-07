@@ -29,6 +29,11 @@ use craftpulse\authkit\db\Table;
  * unique constraint on `tokenHash` is part of the security model and is
  * enforced at the database level, not just validation.
  *
+ * It also owns the shared device registry (`authkit_sessions`) and the shared
+ * new-location history (`authkit_locations`), both introduced in 1.10.0 and
+ * created here for a fresh install; existing installs get them from
+ * [[m260807_000001_AddSessionsAndLocations]].
+ *
  * @author CraftPulse
  * @since 1.0.0
  */
@@ -54,6 +59,8 @@ class Install extends Migration
      */
     public function safeDown(): bool
     {
+        $this->dropTableIfExists(Table::SESSIONS);
+        $this->dropTableIfExists(Table::LOCATIONS);
         $this->dropTableIfExists(Table::TOKENS);
 
         return true;
@@ -63,16 +70,22 @@ class Install extends Migration
     // =========================================================================
 
     /**
-     * Adds the foreign key tying Auth Kit's tokens to Craft's users.
+     * Adds the foreign keys tying Auth Kit's rows to Craft's users.
      *
      * Tokens are owned by their user — CASCADE so deleting a user prunes their
-     * outstanding tokens. `userId` is nullable: a registration token has no user
-     * yet, and the foreign key simply skips the reference check for that null.
+     * outstanding tokens. `userId` is nullable there: a registration token has
+     * no user yet, and the foreign key simply skips the reference check for that
+     * null.
+     *
+     * Registry rows are owned by their user too, and CASCADE keeps them in step
+     * with core's own `{{%sessions}}` rows, which core deletes the same way when
+     * a user is removed. Location-history rows CASCADE for the same reason and
+     * one more: it is what answers an erasure request with no extra step.
      *
      * Guarded by [[_addForeignKeyIfMissing()]] for the same reason
      * [[_createIndexes()]] guards every `createIndex()` call: this migration's
-     * `safeUp()` can run directly against a database that already carries
-     * `authkit_tokens` and its foreign key (see that method's docblock), and
+     * `safeUp()` can run directly against a database that already carries these
+     * tables and their foreign keys (see that method's docblock), and
      * `addForeignKey()` has no name-collision protection of its own to fall
      * back on.
      *
@@ -81,6 +94,8 @@ class Install extends Migration
      */
     private function _addForeignKeys(): void
     {
+        $this->_addForeignKeyIfMissing(Table::LOCATIONS, ['userId'], CraftTable::USERS, ['id'], 'CASCADE');
+        $this->_addForeignKeyIfMissing(Table::SESSIONS, ['userId'], CraftTable::USERS, ['id'], 'CASCADE');
         $this->_addForeignKeyIfMissing(Table::TOKENS, ['userId'], CraftTable::USERS, ['id'], 'CASCADE');
     }
 
@@ -136,6 +151,15 @@ class Install extends Migration
         $this->createIndexIfMissing(Table::TOKENS, ['userId']);
         $this->createIndexIfMissing(Table::TOKENS, ['subject']);
         $this->createIndexIfMissing(Table::TOKENS, ['expiryDate']);
+        // The registry is looked up by user (the per-user session list) and by
+        // token hash (the current-session match and the prune-by-token path).
+        // The hash is unique, so two consumers capturing the same login cannot
+        // produce two rows.
+        $this->createIndexIfMissing(Table::SESSIONS, ['tokenHash'], true);
+        $this->createIndexIfMissing(Table::SESSIONS, ['userId']);
+        // Location history is only ever read one user at a time, either for the
+        // whole user (is there any baseline?) or for one exact place.
+        $this->createIndexIfMissing(Table::LOCATIONS, ['userId', 'country', 'city']);
     }
 
     /**
@@ -166,6 +190,42 @@ class Install extends Migration
                 'attempts' => $this->integer()->notNull()->defaultValue(0),
                 'maxAttempts' => $this->integer(),
                 'payload' => $this->json(),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+            ]);
+        }
+
+        if (!$this->db->tableExists(Table::SESSIONS)) {
+            $this->createTable(Table::SESSIONS, [
+                'id' => $this->primaryKey(),
+                'userId' => $this->integer()->notNull(),
+                // The sha256 of Craft's auth-session token, never the token.
+                'tokenHash' => $this->char(64)->notNull(),
+                'userAgent' => $this->string(255),
+                'ip' => $this->string(45),
+                // Coarse location captured at session registration, for the
+                // member's device cards; both stay null with no geo database.
+                'city' => $this->string(255),
+                'country' => $this->char(2),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+            ]);
+        }
+
+        if (!$this->db->tableExists(Table::LOCATIONS)) {
+            $this->createTable(Table::LOCATIONS, [
+                'id' => $this->primaryKey(),
+                'userId' => $this->integer()->notNull(),
+                // ISO 3166-1 alpha-2. A row only ever exists for a resolved
+                // country, so unlike the registry's copy this one is not null.
+                'country' => $this->char(2)->notNull(),
+                // Null when the database placed the country but not the city.
+                'city' => $this->string(255),
+                // When this place was last alerted about, across every consumer
+                // on the install — the stamp that keeps two plugins to one email.
+                'dateAlerted' => $this->dateTime(),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),

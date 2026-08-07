@@ -57,6 +57,24 @@ final class AuthEvent
     public const LOGIN_MAGIC_LINK = 'login.magic_link';
 
     /**
+     * @var string A login arrived from a coarse location (country and city) the
+     * user had never successfully signed in from before (`login.new_location`);
+     * `details` carries `country`, and `city` when one was resolved.
+     *
+     * The location itself, not the sign-in, is the audit fact: the login it
+     * accompanies is reported separately by whichever `LOGIN_*` constant names
+     * the channel it arrived on. Emitted once per user and place across the
+     * whole install, however many consumers are watching, so it never doubles
+     * up.
+     *
+     * A country is always present — a login whose IP could not be placed is
+     * never flagged — while `city` is absent for a country-only resolution.
+     *
+     * @since 1.10.0
+     */
+    public const LOGIN_NEW_LOCATION = 'login.new_location';
+
+    /**
      * @var string A one-time-passcode login succeeded (`login.otp`).
      *
      * @since 1.2.0

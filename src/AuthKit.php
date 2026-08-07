@@ -138,6 +138,15 @@ class AuthKit extends Module
      */
     public function init(): void
     {
+        // Yii resolves a module's controllers against `controllerNamespace`,
+        // which it fixes during `init()`, so the console namespace has to be in
+        // place before `parent::init()` runs or `auth-kit/geo/refresh` resolves
+        // against the (nonexistent) web namespace instead. Auth Kit ships no web
+        // controllers, so only the console side is set.
+        if (Craft::$app->getRequest()->getIsConsoleRequest()) {
+            $this->controllerNamespace = 'craftpulse\\authkit\\console\\controllers';
+        }
+
         parent::init();
 
         // Only the canonically-registered module claims the singleton. A

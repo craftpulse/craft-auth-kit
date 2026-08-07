@@ -22,8 +22,11 @@ namespace craftpulse\authkit\services;
  * trait's docblock — never duplicate them on the main module class.
  *
  * @property-read Audit $audit
+ * @property-read Geo $geo
+ * @property-read Locations $locations
  * @property-read Passkeys $passkeys
  * @property-read Passwords $passwords
+ * @property-read Sessions $sessions
  * @property-read Tokens $tokens
  *
  * @author CraftPulse
@@ -47,8 +50,11 @@ trait ServicesTrait
         return [
             'components' => [
                 'audit' => ['class' => Audit::class],
+                'geo' => ['class' => Geo::class],
+                'locations' => ['class' => Locations::class],
                 'passkeys' => ['class' => Passkeys::class],
                 'passwords' => ['class' => Passwords::class],
+                'sessions' => ['class' => Sessions::class],
                 'tokens' => ['class' => Tokens::class],
             ],
         ];
@@ -66,6 +72,38 @@ trait ServicesTrait
     {
         $component = $this->get('audit');
         assert($component instanceof Audit);
+
+        return $component;
+    }
+
+    /**
+     * Returns the geo service.
+     *
+     * @return Geo
+     *
+     * @author CraftPulse
+     * @since 1.10.0
+     */
+    public function getGeo(): Geo
+    {
+        $component = $this->get('geo');
+        assert($component instanceof Geo);
+
+        return $component;
+    }
+
+    /**
+     * Returns the locations service.
+     *
+     * @return Locations
+     *
+     * @author CraftPulse
+     * @since 1.10.0
+     */
+    public function getLocations(): Locations
+    {
+        $component = $this->get('locations');
+        assert($component instanceof Locations);
 
         return $component;
     }
@@ -98,6 +136,22 @@ trait ServicesTrait
     {
         $component = $this->get('passwords');
         assert($component instanceof Passwords);
+
+        return $component;
+    }
+
+    /**
+     * Returns the sessions service.
+     *
+     * @return Sessions
+     *
+     * @author CraftPulse
+     * @since 1.10.0
+     */
+    public function getSessions(): Sessions
+    {
+        $component = $this->get('sessions');
+        assert($component instanceof Sessions);
 
         return $component;
     }

@@ -17,6 +17,7 @@ use craft\services\Gc;
 use craft\services\SystemMessages;
 use craft\web\twig\variables\CraftVariable;
 use craft\web\User as WebUser;
+use craftpulse\authkit\services\Locations;
 use craftpulse\authkit\services\Tokens;
 use craftpulse\authkit\variables\AuthKitVariable;
 use yii\base\Event;
@@ -59,14 +60,20 @@ trait PluginTrait
     }
 
     /**
-     * Prunes expired tokens on Craft's garbage-collection pass.
+     * Prunes expired tokens and orphaned session-registry rows on Craft's
+     * garbage-collection pass.
      *
-     * Auth Kit owns the `authkit_tokens` table, so it owns the cleanup —
-     * consuming plugins (Warden, Warp) get it for free and never wire their
-     * own scheduler. `craft\services\Gc::EVENT_RUN` fires on every GC run
-     * (`php craft gc`, and probabilistically during requests) with a base
-     * `yii\base\Event` — there is no dedicated event class. Expired tokens are
-     * already unusable, so deleting them is safe and needs no retention window.
+     * Auth Kit owns both tables, so it owns the cleanup — consuming plugins
+     * (Warden, Warp) get it for free and never wire their own scheduler.
+     * `craft\services\Gc::EVENT_RUN` fires on every GC run (`php craft gc`, and
+     * probabilistically during requests) with a base `yii\base\Event` — there is
+     * no dedicated event class. Expired tokens are already unusable, so deleting
+     * them is safe and needs no retention window; an orphaned registry row
+     * describes a Craft session that no longer exists, so the same holds.
+     *
+     * Capture is NOT wired here (see [[\craftpulse\authkit\services\Sessions]]):
+     * a consumer owns when a login is registered and whether the stored address
+     * is anonymized. Cleanup belongs to whoever owns the table.
      *
      * @author CraftPulse
      * @since 1.0.0
@@ -78,6 +85,7 @@ trait PluginTrait
             Gc::EVENT_RUN,
             function(): void {
                 $this->getTokens()->purgeExpiredTokens();
+                $this->getSessions()->pruneOrphans();
             },
         );
     }
@@ -107,14 +115,21 @@ trait PluginTrait
 
     /**
      * Registers Auth Kit's editable system messages — the magic-link, OTP, guest
-     * OTP, and registration emails. Subject and body are Twig, rendered with the
-     * variables the tokens service passes to `composeFromKey()`: `link` + `user`
-     * for magic links, `code` + `user` for OTP, `code` + `email` for the guest
-     * OTP, and `link` + `email` for registration (the guest and registration
-     * copy address the visitor without a friendly name, since no user exists).
-     * All four additionally get `expiresIn`, the credential's lifetime already
-     * formatted for reading ("15 minutes", "1 hour"), so the copy can state the
-     * exact expiry instead of hedging.
+     * OTP, and registration emails, plus the new-location alert. Subject and
+     * body are Twig, rendered with the variables the tokens service passes to
+     * `composeFromKey()`: `link` + `user` for magic links, `code` + `user` for
+     * OTP, `code` + `email` for the guest OTP, and `link` + `email` for
+     * registration (the guest and registration copy address the visitor without
+     * a friendly name, since no user exists). Those four additionally get
+     * `expiresIn`, the credential's lifetime already formatted for reading
+     * ("15 minutes", "1 hour"), so the copy can state the exact expiry instead of
+     * hedging.
+     *
+     * The new-location alert is rendered by the locations service with `user`,
+     * `location`, `city`, `country`, and a `sessionsUrl` the copy links to so a
+     * member can review and sign out other devices. A consumer that already
+     * ships its own editable copy passes its own message key instead of this
+     * one, so an install's customized message is never orphaned.
      *
      * @author CraftPulse
      * @since 1.0.0
@@ -151,6 +166,13 @@ trait PluginTrait
                     'heading' => Craft::t('auth-kit', 'When someone requests a link to finish signing up:'),
                     'subject' => Craft::t('auth-kit', 'Finish setting up your account'),
                     'body' => Craft::t('auth-kit', "Hi,\n\nUse the link below to finish setting up your account. It expires in {{ expiresIn }} and can be used only once.\n\n{{ link }}\n\nIf you didn’t request this, you can safely ignore this email."),
+                ]);
+
+                $event->messages[] = new SystemMessage([
+                    'key' => Locations::MESSAGE_KEY_NEW_LOCATION,
+                    'heading' => Craft::t('auth-kit', 'When someone signs in from a new location:'),
+                    'subject' => Craft::t('auth-kit', 'New sign-in to your account'),
+                    'body' => Craft::t('auth-kit', "Hi {{ user.friendlyName }},\n\nWe noticed a new sign-in to your account from {{ location }}.\n\nIf this was you, no action is needed. If it was not, sign out your other devices and review your passkeys here:\n\n{{ sessionsUrl }}"),
                 ]);
             },
         );

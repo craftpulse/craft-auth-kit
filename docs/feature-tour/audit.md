@@ -38,6 +38,7 @@ AuthKit::getInstance()->getAudit()->record(new AuthEvent(
 | Constant | Description |
 |---|---|
 | `LOGIN_MAGIC_LINK` | A magic-link login succeeded. |
+| `LOGIN_NEW_LOCATION` | A login arrived from a country and city the user had never signed in from before. `details` carries `country`, and `city` when one was resolved. Emitted once per user and place across the whole install, however many consumers are watching. See [Sessions and locations](sessions.md). |
 | `LOGIN_OTP` | A one-time-code login succeeded. |
 | `LOGIN_PASSKEY` | A passkey login succeeded. |
 | `LOGIN_SSO` | A single-sign-on login succeeded. `details` carries the identity provider handle under `provider`. |
