@@ -13,9 +13,10 @@
  * fails outright.
  *
  * This file is the guard that would have caught the reintroduction: it replays
- * all four migrations against the already-migrated schema and asserts the index
- * and foreign-key inventory is byte-for-byte unchanged. Any new migration must
- * be added to the list below.
+ * every migration against the already-migrated schema and asserts the index and
+ * foreign-key inventory is byte-for-byte unchanged. Any new migration must be
+ * added to the list below — 1.10.0's shipped without being added, which is
+ * exactly the omission this docblock warns about.
  *
  * @link      https://craft-pulse.com
  * @copyright Copyright (c) 2026 CraftPulse
@@ -28,6 +29,8 @@ use craftpulse\authkit\migrations\Install;
 use craftpulse\authkit\migrations\m260711_000001_MakeTokenUserIdNullable;
 use craftpulse\authkit\migrations\m260716_000001_AddTokenOrigin;
 use craftpulse\authkit\migrations\m260718_000001_AddTokenSubject;
+use craftpulse\authkit\migrations\m260807_000001_AddSessionsAndLocations;
+use craftpulse\authkit\migrations\m260807_000002_AddSessionIsNewLocation;
 
 /**
  * Every migration Auth Kit ships, in application order.
@@ -39,6 +42,8 @@ const AUTHKIT_MIGRATION_CLASSES = [
     m260711_000001_MakeTokenUserIdNullable::class,
     m260716_000001_AddTokenOrigin::class,
     m260718_000001_AddTokenSubject::class,
+    m260807_000001_AddSessionsAndLocations::class,
+    m260807_000002_AddSessionIsNewLocation::class,
 ];
 
 /**

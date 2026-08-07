@@ -30,6 +30,12 @@ use craftpulse\authkit\db\Table;
  * session a no-op — so two plugins can wire the same capture without producing
  * two rows, two device cards, or two alerts.
  *
+ * `isNewLocation` is the registry's answer to "had this account ever been seen
+ * here before?", decided once at capture time and stored, so every consumer
+ * badges and filters on the same fact. It is nullable: a row written before
+ * 1.11.0 was never asked, and null says so rather than claiming the place was
+ * familiar.
+ *
  * @property int $id
  * @property int $userId
  * @property string $tokenHash
@@ -37,6 +43,7 @@ use craftpulse\authkit\db\Table;
  * @property string|null $ip
  * @property string|null $city
  * @property string|null $country
+ * @property bool|null $isNewLocation
  * @property string $dateCreated
  * @property string $dateUpdated
  * @property string $uid

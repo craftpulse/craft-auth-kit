@@ -72,6 +72,18 @@ class SessionInfo extends Model
     public bool $isCurrent = false;
 
     /**
+     * @var bool|null Whether the session was registered from a place the user
+     * had never been seen at before — the "signed in from somewhere new" badge.
+     * Null when the question was never asked: a session that predates the
+     * registry, or one recorded before Auth Kit 1.11.0 began storing the answer.
+     * Null is not `false`; treat it as unknown rather than as a place the
+     * registry checked and found familiar.
+     *
+     * @since 1.11.0
+     */
+    public ?bool $isNewLocation = null;
+
+    /**
      * @var string|null The IP captured when the session was registered, or null
      * for a session that predates the registry.
      *

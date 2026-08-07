@@ -14,7 +14,7 @@ Three services cooperate:
 
 ## The device registry
 
-Each row pins the sha256 hash of a Craft auth-session token to a truncated user-agent, an IP, and the coarse location it was captured from. Only the hash is stored, never the token, so a leak of the registry yields nothing usable.
+Each row pins the sha256 hash of a Craft auth-session token to a truncated user-agent, an IP, the coarse location it was captured from, and whether that location was one the account had never been seen at. Only the hash is stored, never the token, so a leak of the registry yields nothing usable.
 
 Capture is deliberately not wired for you. Your plugin decides when a login is registered and what its privacy settings say about the stored address:
 
@@ -62,7 +62,7 @@ $sessions->revoke($user, $uid, ['emitter' => 'my-plugin']);
 $sessions->revokeOthers($user, ['emitter' => 'my-plugin']);
 ```
 
-`SessionInfo` carries `uid`, `deviceLabel`, `deviceType`, `ip`, `city`, `lastSeen`, and `isCurrent`. The `uid` is the registry row's, and is the only handle a front end ever posts back; the raw token is never exposed. A core session with no registry row (created before the registry existed, or by a path nobody captures) still appears, labelled "Unknown device" with a null `uid`, so nothing is hidden from the person managing their account. Those are revocable through `revokeOthers()` only.
+`SessionInfo` carries `uid`, `deviceLabel`, `deviceType`, `ip`, `city`, `isNewLocation`, `lastSeen`, and `isCurrent`. The `uid` is the registry row's, and is the only handle a front end ever posts back; the raw token is never exposed. A core session with no registry row (created before the registry existed, or by a path nobody captures) still appears, labelled "Unknown device" with a null `uid`, so nothing is hidden from the person managing their account. Those are revocable through `revokeOthers()` only.
 
 Deleting the core `sessions` row is the authoritative kill: Craft validates the token against that table on every authenticated request, so the browser is a guest on its next one.
 
@@ -85,6 +85,22 @@ if ($locations->isNew($userId, $country, $city)) {
 ```
 
 `isNew()` reads the shared `authkit_locations` history by default. That history is written by `Sessions::record()`, so it covers every channel a member can sign in through, password included, not just the ones one plugin owns.
+
+### The answer is stored, so you can badge and filter on it
+
+You rarely need to call `isNew()` yourself for the shared history. `Sessions::record()` already asks it, once, and writes the answer to the registry row as `isNewLocation`, surfaced on `SessionInfo`. Two plugins badging a session-management screen therefore agree, because they are reading one stored fact rather than each recomputing it.
+
+The order inside `record()` is load-bearing and worth knowing if you ever write a capture of your own: the question is asked **before** `seen()` files the place into the history. Reversed, the place is already there by the time you ask and the answer is always `false`.
+
+`isNewLocation` is nullable, and null is not `false`:
+
+| Value | Meaning |
+|---|---|
+| `true` | The account had been seen elsewhere before, and never here. |
+| `false` | Asked and answered no: a repeat place, a first-ever sign-in (no baseline to be new against), or no country resolved. |
+| `null` | Never asked. The row predates Auth Kit 1.11.0, or the core session has no registry row at all. |
+
+Treat null as unknown. Rendering it as "not a new location" tells a member the registry checked when it never did.
 
 If your plugin keeps a richer login log of its own and wants that as the baseline, hand `isNew()` a query over it. It needs `userId`, `country`, and `city` columns:
 

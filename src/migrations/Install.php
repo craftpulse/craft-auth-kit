@@ -32,7 +32,11 @@ use craftpulse\authkit\db\Table;
  * It also owns the shared device registry (`authkit_sessions`) and the shared
  * new-location history (`authkit_locations`), both introduced in 1.10.0 and
  * created here for a fresh install; existing installs get them from
- * [[m260807_000001_AddSessionsAndLocations]].
+ * [[m260807_000001_AddSessionsAndLocations]]. The registry's `isNewLocation`
+ * column arrived later (1.11.0) against a table that already existed on most
+ * installs, so it is added by [[_addColumns()]] rather than by the `CREATE`
+ * alone; existing installs reach that through
+ * [[m260807_000002_AddSessionIsNewLocation]].
  *
  * @author CraftPulse
  * @since 1.0.0
@@ -48,6 +52,7 @@ class Install extends Migration
     public function safeUp(): bool
     {
         $this->_createTables();
+        $this->_addColumns();
         $this->_createIndexes();
         $this->_addForeignKeys();
 
@@ -68,6 +73,45 @@ class Install extends Migration
 
     // Private Methods
     // =========================================================================
+
+    /**
+     * Adds columns that arrived after the table they belong to already existed
+     * on real installs, so [[_createTables()]]'s `CREATE` alone can never reach
+     * them.
+     *
+     * `isNewLocation` is deliberately nullable with no default. A row written
+     * before 1.11.0 was never asked the question, and `false` there would claim
+     * the registry had checked and found the place familiar — a claim a
+     * consumer badging or filtering on the column would then repeat to a member
+     * as fact. Null says "never assessed", which is the truth, and a filter for
+     * new locations excludes it either way. Every row written from 1.11.0
+     * carries an explicit `true` or `false`.
+     *
+     * No index: the column is read only alongside a `userId` the registry is
+     * already indexed on, over a set that never exceeds a user's live sessions,
+     * and this schema is close enough to MySQL's 64-key-per-table ceiling (see
+     * [[_createIndexes()]]) that a low-cardinality boolean is not worth a key.
+     *
+     * @author CraftPulse
+     * @since 1.11.0
+     */
+    private function _addColumns(): void
+    {
+        // Refreshed, because [[_createTables()]] may have just created this
+        // table in the same process: Craft memoizes the schema and only
+        // refreshes on request, so an unrefreshed `columnExists()` can report
+        // false for a column that landed moments ago in the `CREATE` and turn
+        // this guard into a duplicate-column error.
+        if (!$this->db->tableExists(Table::SESSIONS, true)) {
+            return;
+        }
+
+        if ($this->db->columnExists(Table::SESSIONS, 'isNewLocation')) {
+            return;
+        }
+
+        $this->addColumn(Table::SESSIONS, 'isNewLocation', $this->boolean()->after('country'));
+    }
 
     /**
      * Adds the foreign keys tying Auth Kit's rows to Craft's users.
@@ -208,6 +252,11 @@ class Install extends Migration
                 // member's device cards; both stay null with no geo database.
                 'city' => $this->string(255),
                 'country' => $this->char(2),
+                // Whether this session's place was one the user had never been
+                // seen at before it was filed into the shared history. Nullable
+                // because a row from before 1.11.0 was never asked; see
+                // [[_addColumns()]].
+                'isNewLocation' => $this->boolean(),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),

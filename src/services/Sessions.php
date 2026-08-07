@@ -111,7 +111,7 @@ class Sessions extends Component
 
         /** @var array<string, array<string, mixed>> $registry */
         $registry = (new Query())
-            ->select(['uid', 'tokenHash', 'userAgent', 'ip', 'city'])
+            ->select(['uid', 'tokenHash', 'userAgent', 'ip', 'city', 'isNewLocation'])
             ->from(Table::SESSIONS)
             ->where(['userId' => $userId])
             ->indexBy('tokenHash')
@@ -205,6 +205,14 @@ class Sessions extends Component
      * truncated user-agent and IP for display — and remembers the coarse
      * location it came from in the shared history.
      *
+     * The row also records whether that location was one the user had never been
+     * seen at, so every consumer badges and filters on one stored answer rather
+     * than each recomputing its own. The order the two location steps run in is
+     * load-bearing: [[Locations::isNew()]] is asked first, and only then does
+     * [[Locations::seen()]] file the place into the history. Reversed, the place
+     * is already in the history by the time the question is asked and the answer
+     * is always false.
+     *
      * Call it from `WebUser::EVENT_AFTER_LOGIN`, by which point core has already
      * generated the token and inserted the `{{%sessions}}` row. Best-effort and
      * null-guarded: no token (a console or session-less context) or an already
@@ -253,6 +261,13 @@ class Sessions extends Component
 
             $module = AuthKit::getInstance();
             $location = $module->getGeo()->lookup($ip);
+            $locations = $module->getLocations();
+
+            // ORDER IS LOAD-BEARING. The question "has this account ever been
+            // seen here?" can only be asked of a history this place is not in
+            // yet, so isNew() must run before seen() files it. Swap the two and
+            // the answer is always false, silently and forever.
+            $isNewLocation = $locations->isNew((int)$user->id, $location['country'], $location['city']);
 
             $record = new SessionRecord();
             $record->userId = (int)$user->id;
@@ -263,13 +278,14 @@ class Sessions extends Component
             $record->ip = ($options['anonymizeIp'] ?? true) ? Ip::anonymize($ip) : $ip;
             $record->city = $location['city'];
             $record->country = $location['country'];
+            $record->isNewLocation = $isNewLocation;
             $record->save(false);
 
             // The registry is the one capture every login channel passes
             // through, so it is where the shared location history is fed from.
             // Alerting is not done here: a consumer owns whether its members get
             // told, and Locations::alert() keeps two consumers to one email.
-            $module->getLocations()->seen((int)$user->id, $location['country'], $location['city']);
+            $locations->seen((int)$user->id, $location['country'], $location['city']);
         } catch (Throwable $e) {
             Craft::warning("Could not record the session for user {$user->id}: {$e->getMessage()}", __METHOD__);
         }
@@ -463,6 +479,8 @@ class Sessions extends Component
         $info->uid = $match !== null ? (string)$match['uid'] : null;
         $info->ip = $match !== null && $match['ip'] !== null ? (string)$match['ip'] : null;
         $info->city = $match !== null && $match['city'] !== null ? (string)$match['city'] : null;
+        // Null stays null: "never assessed" is not "was not new".
+        $info->isNewLocation = $match !== null && $match['isNewLocation'] !== null ? (bool)$match['isNewLocation'] : null;
         $info->deviceLabel = $match !== null
             ? Device::label($userAgent)
             : Craft::t('auth-kit', 'Unknown device');

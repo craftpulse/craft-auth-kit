@@ -28,7 +28,10 @@ use craft\helpers\StringHelper;
 use craftpulse\authkit\audit\AuthEvent;
 use craftpulse\authkit\AuthKit;
 use craftpulse\authkit\db\Table;
+use craftpulse\authkit\models\SessionInfo;
 use craftpulse\authkit\records\Session as SessionRecord;
+use craftpulse\authkit\services\Geo;
+use craftpulse\authkit\services\Locations;
 use craftpulse\authkit\services\Sessions;
 use craftpulse\authkit\tests\Support\CollectingAuditSink;
 
@@ -84,6 +87,19 @@ function registryExistsForToken(string $token): bool
 }
 
 /**
+ * Returns the stored new-location flag for a token's registry row. MySQL hands
+ * a `tinyint(1)` back as an int, so the two answers are normalized to booleans
+ * — but null is passed through untouched, because "never assessed" is the one
+ * value this column must never collapse into "not new".
+ */
+function storedNewLocationFlag(string $token): ?bool
+{
+    $value = SessionRecord::findOne(['tokenHash' => hash('sha256', $token)])?->isNewLocation;
+
+    return $value === null ? null : (bool)$value;
+}
+
+/**
  * Plants a known client address on the request and resets getUserIP()'s memo on
  * both sides, then restores everything.
  */
@@ -100,6 +116,37 @@ function withClientIp(string $ip, callable $body): void
     } finally {
         $request->getHeaders()->set('X-Forwarded-For', $original);
         $memo->setValue($request, null);
+    }
+}
+
+/**
+ * Swaps a geo service that resolves every address to one fixed place onto the
+ * module, then restores the real one. No MMDB ships with the suite, so this is
+ * the only way to exercise the location-bearing half of a capture.
+ */
+function withResolvedLocation(string $country, ?string $city, callable $body): void
+{
+    $module = AuthKit::getInstance();
+    $original = $module->getGeo();
+
+    $stub = new class() extends Geo {
+        public ?string $stubCity = null;
+        public string $stubCountry = '';
+
+        public function lookup(?string $ip): array
+        {
+            return ['city' => $this->stubCity, 'country' => $this->stubCountry];
+        }
+    };
+
+    $stub->stubCountry = $country;
+    $stub->stubCity = $city;
+    $module->set('geo', $stub);
+
+    try {
+        $body();
+    } finally {
+        $module->set('geo', $original);
     }
 }
 
@@ -191,6 +238,113 @@ it('records nothing with no session token', function() {
     (new Sessions())->record();
 
     expect((new Query())->from(Table::SESSIONS)->where(['userId' => (int)$user->id])->exists())->toBeFalse();
+});
+
+// =============================================================================
+// new-location flag — asked BEFORE the place is filed into the history
+// =============================================================================
+
+it('flags a session recorded from a place the user has never been', function() {
+    $user = registryUser();
+    $token = insertCoreSession((int)$user->id);
+    Craft::$app->getUser()->setIdentity($user);
+    setCurrentToken($token);
+
+    // A baseline, so the rule has something to compare against — a first-ever
+    // sign-in is never new.
+    (new Locations())->seen((int)$user->id, 'BE', 'Brussels');
+
+    withResolvedLocation('JP', 'Tokyo', function() {
+        (new Sessions())->record();
+    });
+
+    // This is the ordering guard. record() asks Locations::isNew() and only
+    // then calls Locations::seen(). Swap those two lines in the service and
+    // Tokyo is already in the history by the time the question is asked, the
+    // answer comes back false, and this expectation fails.
+    expect(storedNewLocationFlag($token))->toBe(true);
+});
+
+it('still files the place into the shared history after asking', function() {
+    $user = registryUser();
+    $token = insertCoreSession((int)$user->id);
+    Craft::$app->getUser()->setIdentity($user);
+    setCurrentToken($token);
+
+    (new Locations())->seen((int)$user->id, 'BE', 'Brussels');
+
+    withResolvedLocation('JP', 'Tokyo', function() {
+        (new Sessions())->record();
+    });
+
+    // Asking first must not cost the history the row: the next sign-in from
+    // Tokyo has to read as familiar.
+    expect((new Locations())->isNew((int)$user->id, 'JP', 'Tokyo'))->toBeFalse();
+});
+
+it('does not flag a session recorded from a place already in the history', function() {
+    $user = registryUser();
+    $token = insertCoreSession((int)$user->id);
+    Craft::$app->getUser()->setIdentity($user);
+    setCurrentToken($token);
+
+    (new Locations())->seen((int)$user->id, 'BE', 'Brussels');
+    (new Locations())->seen((int)$user->id, 'JP', 'Tokyo');
+
+    withResolvedLocation('JP', 'Tokyo', function() {
+        (new Sessions())->record();
+    });
+
+    expect(storedNewLocationFlag($token))->toBe(false);
+});
+
+it('does not flag a first-ever sign-in, which has no baseline to be new against', function() {
+    $user = registryUser();
+    $token = insertCoreSession((int)$user->id);
+    Craft::$app->getUser()->setIdentity($user);
+    setCurrentToken($token);
+
+    withResolvedLocation('JP', 'Tokyo', function() {
+        (new Sessions())->record();
+    });
+
+    expect(storedNewLocationFlag($token))->toBe(false);
+});
+
+it('records a resolved-nothing capture as not new, reserving null for rows that predate the column', function() {
+    $user = registryUser();
+    $token = insertCoreSession((int)$user->id);
+    Craft::$app->getUser()->setIdentity($user);
+    setCurrentToken($token);
+
+    // No geo database: the real service resolves nothing.
+    (new Sessions())->record();
+
+    expect(storedNewLocationFlag($token))->toBe(false);
+});
+
+it('surfaces the flag on the session list, keeping an unassessed row null', function() {
+    $user = registryUser();
+    $flagged = insertCoreSession((int)$user->id);
+    $legacy = insertCoreSession((int)$user->id);
+    Craft::$app->getUser()->setIdentity($user);
+    setCurrentToken($flagged);
+
+    // A row from before the column existed: captured, never assessed.
+    insertRegistryRow((int)$user->id, $legacy);
+
+    (new Locations())->seen((int)$user->id, 'BE', 'Brussels');
+
+    withResolvedLocation('JP', 'Tokyo', function() {
+        (new Sessions())->record();
+    });
+
+    $list = (new Sessions())->getSessionsForUser($user);
+    $flaggedInfo = array_values(array_filter($list, static fn(SessionInfo $info): bool => $info->isCurrent))[0];
+    $legacyInfo = array_values(array_filter($list, static fn(SessionInfo $info): bool => !$info->isCurrent))[0];
+
+    expect($flaggedInfo->isNewLocation)->toBe(true)
+        ->and($legacyInfo->isNewLocation)->toBeNull();
 });
 
 // =============================================================================
