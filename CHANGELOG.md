@@ -1,5 +1,16 @@
 # Release Notes for Auth Kit
 
+## 1.10.0 - 2026-08-07
+
+- Added `craftpulse\authkit\services\Sessions`, a shared session registry that records a row for every sign-in regardless of channel, so consuming plugins no longer each keep their own.
+- Added `craftpulse\authkit\services\Geo`, which resolves a city and country from an IP address against a local MaxMind database, and `craftpulse\authkit\helpers\Ip` and `craftpulse\authkit\helpers\Device` alongside it.
+- Added `craftpulse\authkit\services\Locations`, which decides whether a sign-in comes from a place the account has not been seen at before, and claims that decision so two consuming plugins on one install send a single alert rather than one each.
+- Added the `auth-kit/geo/refresh` console command, which downloads and installs the geolocation database.
+- Added `craftpulse\authkit\audit\AuthEvent::LOGIN_NEW_LOCATION` and the `authkit_new_location` system message.
+- Added the `authkit_sessions` and `authkit_locations` tables.
+- Session capture is not wired automatically. A consuming plugin records sign-ins itself and passes its own IP anonymization preference, so adopting this release does not change what an existing install stores.
+- The geolocation database is MaxMind GeoLite2, used under the GeoLite2 End User License Agreement. Sites must credit MaxMind and refresh the database at least every 30 days, replacing the copy they hold. Location resolution is skipped entirely when no database is installed.
+
 ## 1.9.0 - 2026-08-07
 
 - Added `craftpulse\authkit\audit\AuthEvent::USER_PROVISIONED`, `craftpulse\authkit\audit\AuthEvent::USER_DEPROVISIONED`, and `craftpulse\authkit\audit\AuthEvent::USER_RESTORED`, channel-neutral event names for account lifecycle changes that do not arrive through SCIM. Each carries the originating channel in its `details.trigger` value.

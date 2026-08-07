@@ -2,7 +2,7 @@
     "name": "craftpulse/craft-auth-kit",
     "description": "Foundational authentication primitives for Craft CMS: passwordless tokens (magic links + email OTP), passkey wrappers, a recent-auth gate, and a password-validator contract. A library-shipped Yii module, the shared base for the CraftPulse security ecosystem.",
     "type": "library",
-    "version": "1.9.0",
+    "version": "1.10.0",
     "license": "MIT",
     "keywords": [
         "craft",
