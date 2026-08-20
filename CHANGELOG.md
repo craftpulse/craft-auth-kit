@@ -1,6 +1,6 @@
 # Release Notes for Auth Kit
 
-## Unreleased
+## 1.11.1 - 2026-08-20
 
 - Fixed an error that occurred when signing in on Craft Cloud, where the platform's session component is not `craft\web\Session`.
 
