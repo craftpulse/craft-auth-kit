@@ -257,15 +257,20 @@ class Passkeys extends Component
     }
 
     /**
-     * Returns Craft's session component. The recent-auth state is browser-bound
+     * Returns the app's session component. The recent-auth state is browser-bound
      * and lives in the user's session.
      *
-     * @return \craft\web\Session
+     * Typed against the Yii base class on purpose: hosting platforms swap the
+     * session component for their own class (Craft Cloud wires a
+     * `yii\web\DbSession` subclass), so `craft\web\Session` cannot be assumed,
+     * and the recent-auth state only needs the base get/set surface.
+     *
+     * @return \yii\web\Session
      *
      * @author CraftPulse
      * @since 1.0.0
      */
-    private function _session(): \craft\web\Session
+    private function _session(): \yii\web\Session
     {
         /** @var \craft\web\Application $app */
         $app = Craft::$app;

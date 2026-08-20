@@ -1,5 +1,9 @@
 # Release Notes for Auth Kit
 
+## Unreleased
+
+- Fixed an error that occurred when signing in on Craft Cloud, where the platform's session component is not `craft\web\Session`.
+
 ## 1.11.0 - 2026-08-07
 
 - Added `isNewLocation` to the shared session registry and to `craftpulse\authkit\models\SessionInfo`, recording whether a sign-in came from a place the account had not been seen at before, so a consuming plugin can badge or filter on it rather than deciding again itself.
